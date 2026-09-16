@@ -28,7 +28,7 @@ def _domain(value: Any) -> str | None:
         value = value[4:]
     labels = value.split(".")
     if len(labels) < 2 or any(not label or any(
-        c not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for c in label) for label in labels):
+        c not in "abcdefghijklmnopqrstuvwxyz0123456789-_*" for c in label) for label in labels):
         return None
     return value
 
