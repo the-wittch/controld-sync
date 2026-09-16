@@ -1,2 +1,6 @@
-# Require repository owners to review automation, source, and configuration changes.
+# Require the repository owner to review sensitive project areas.
+/.github/ @the-wittch
+/config.toml @the-wittch
+/controld_sync/ @the-wittch
+/scripts/ @the-wittch
 * @the-wittch

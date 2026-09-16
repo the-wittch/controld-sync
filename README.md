@@ -1,15 +1,42 @@
-# Control D JSON sync
+# Control D JSON Synchronizer
 
+Sync HaGeZi or arbitrary JSON domain lists into Control D custom-rule
+folders with safe dry runs, action preservation, validation, caching, and
+scheduled GitHub Actions.
+
+[![CI](https://github.com/the-wittch/controld_sync/actions/workflows/ci.yml/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/the-wittch/controld_sync/actions/workflows/codeql.yml/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/codeql.yml)
 [![Sync Control D folders](https://github.com/the-wittch/controld_sync/actions/workflows/controld-sync.yml/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/controld-sync.yml)
-[![Dependabot Updates](https://github.com/the-wittch/controld_sync/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/dependabot/dependabot-updates)
+[![Dependabot](https://github.com/the-wittch/controld_sync/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/dependabot/dependabot-updates)
 
-This small, dependency-free CLI synchronizes JSON folder data into matching
-custom-rule folders on one or more Control D profiles. It is configured with
-TOML, modeled after the reference `controld-hagezi-sync` project, and supports the
-Control D/HaGeZi export shape (`group.group` plus `rules[].PK`) and generic
-JSON containing domain fields. A directory can contain many folders; each file
-is synchronized independently. It is suitable for periodically pulling lists
-and running from cron or a system timer.
+## Features
+
+- Supports HaGeZi Control D folder exports and arbitrary JSON sources.
+- Preserves Control D allow/block rule actions.
+- Supports local files, directories, and HTTPS JSON URLs.
+- Maps folders to multiple Control D profiles.
+- Defaults to safe dry-run behavior.
+- Provides atomic replacement with rollback attempts.
+- Detects remote drift and source changes.
+- Uses cache entries scoped by profile and folder.
+- Retries transient API GET failures.
+- Supports profile listing and configuration generation.
+- Includes weekly GitHub Actions synchronization.
+- Uses immutable source commit pins for safer automation.
+
+## Quick start
+
+```sh
+export CONTROLD_API_TOKEN='your-token'
+
+python3 controld_sync.py \
+  --config config.toml \
+  --dry-run
+
+python3 controld_sync.py \
+  --config config.toml \
+  --apply
+```
 
 ## Setup
 
@@ -231,3 +258,32 @@ If GitHub cannot create or push a PR (for example, repository policy disables
 write permissions for `GITHUB_TOKEN`), it reports the update in the workflow
 log and no config is deployed. The sync workflow still requires the separate
 `CONTROLD_API_TOKEN` secret.
+
+## Limitations
+
+- Control D may deduplicate rules across folders, so source and remote counts
+  may differ.
+- Atomic replacement is best-effort because the Control D API does not expose a
+  transaction or rename/swap primitive.
+- Source updates require reviewing regenerated commit pins before deployment.
+- GitHub Actions requires a `CONTROLD_API_TOKEN` repository secret.
+- Arbitrary JSON action metadata is supported when it follows the Control D
+  folder schema; generic JSON without action metadata defaults to blocking
+  rules.
+
+## Contributing
+
+Before opening a pull request, run:
+
+```sh
+python3 -m unittest -v
+python3 -m py_compile controld_sync.py controld_sync/*.py scripts/*.py
+python3 scripts/validate_config.py config.toml
+```
+
+Keep credentials out of commits, issues, pull requests, and workflow output.
+Changes to synchronization behavior should include a focused regression test.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
