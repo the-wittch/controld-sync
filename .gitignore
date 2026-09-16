@@ -12,6 +12,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+*.egg-info/
+.venv/
+venv/
 
 # Local workflow output.
 sync-summary.txt

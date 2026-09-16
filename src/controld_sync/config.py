@@ -34,9 +34,12 @@ def load_config(path: Path) -> dict[str, Any]:
     for section in ("settings", "profiles", "folders", "profile_folders"):
         if section not in config or not isinstance(config[section], dict):
             raise SyncError(f"Config must contain a [{section}] table")
-    if any(not isinstance(name, str) or not isinstance(source, str)
-           for name, source in config["folders"].items()):
+    if any(
+        not isinstance(name, str) or not isinstance(source, str)
+        for name, source in config["folders"].items()
+    ):
         raise SyncError("[folders] names and sources must be strings")
     return config
+
 
 __all__ = ["API_BASE", "LOOPBACK_HOSTS", "API_HOSTS", "load_config", "_validate_api_base"]

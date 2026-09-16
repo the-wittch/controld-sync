@@ -4,15 +4,26 @@ Thank you for contributing to Control D JSON Synchronizer.
 
 ## Development setup
 
-The project uses Python's standard library and does not require third-party
-packages. Use Python 3.11 or newer.
+The runtime uses Python's standard library. Use Python 3.11 or newer. For
+development, install the package and its quality tools in an isolated
+environment:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+```
 
 Run the validation suite before opening a pull request:
 
 ```sh
-python3 -m unittest -v
-python3 -m py_compile controld_sync.py controld_sync/*.py scripts/*.py
+python3 -m unittest discover -s tests -v
+python3 -m py_compile src/controld_sync/*.py scripts/*.py
 python3 scripts/validate_config.py config.toml
+ruff check .
+ruff format --check .
+pyright
 ```
 
 ## Pull requests

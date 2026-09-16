@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import re
 import urllib.request
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .errors import SchemaError, SyncError
 
@@ -27,8 +28,10 @@ def _domain(value: Any) -> str | None:
     if value.startswith("www."):
         value = value[4:]
     labels = value.split(".")
-    if any(not label or any(
-        c not in "abcdefghijklmnopqrstuvwxyz0123456789-_*" for c in label) for label in labels):
+    if any(
+        not label or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_*" for c in label)
+        for label in labels
+    ):
         return None
     if len(labels) == 1 and not re.fullmatch(r"[a-z0-9][a-z0-9_*_-]*", labels[0]):
         return None
@@ -55,7 +58,17 @@ def _walk_domains(value: Any) -> Iterable[str]:
         for item in value:
             yield from _walk_domains(item)
     elif isinstance(value, dict):
-        for key in ("domain", "hostname", "host", "PK", "pk", "domains", "hosts", "entries", "rules"):
+        for key in (
+            "domain",
+            "hostname",
+            "host",
+            "PK",
+            "pk",
+            "domains",
+            "hosts",
+            "entries",
+            "rules",
+        ):
             if key in value:
                 yield from _walk_domains(value[key])
 
@@ -71,16 +84,24 @@ def validate_folder_schema(data: Any, source: str = "folder") -> tuple[str | Non
     if not isinstance(data, dict) or ("group" not in data and "rules" not in data):
         return None, []
     group = data.get("group")
-    if not isinstance(group, dict) or not isinstance(group.get("group"), str) or not group["group"].strip():
+    if (
+        not isinstance(group, dict)
+        or not isinstance(group.get("group"), str)
+        or not group["group"].strip()
+    ):
         raise SchemaError(f"Invalid Control D folder schema in {source}: group.group is required")
     rules = data.get("rules")
     if not isinstance(rules, list):
         raise SchemaError(f"Invalid Control D folder schema in {source}: rules must be an array")
     for index, rule in enumerate(rules):
         if not isinstance(rule, dict) or not isinstance(rule.get("PK"), str):
-            raise SchemaError(f"Invalid Control D folder schema in {source}: rules[{index}].PK is required")
+            raise SchemaError(
+                f"Invalid Control D folder schema in {source}: rules[{index}].PK is required"
+            )
         if _rule_key(rule["PK"]) is None:
-            raise SchemaError(f"Invalid Control D folder schema in {source}: invalid rules[{index}].PK")
+            raise SchemaError(
+                f"Invalid Control D folder schema in {source}: invalid rules[{index}].PK"
+            )
     return group["group"].strip(), rules
 
 
@@ -161,7 +182,13 @@ def load_domains(source: Path) -> list[str]:
     folders = load_folders(source)
     return sorted(set().union(*folders.values()))
 
+
 __all__ = [
-    "load_domains", "load_folder_source", "load_folders", "parse_folder_data",
-    "parse_folder_rules", "validate_folder_schema", "RuleAction",
+    "load_domains",
+    "load_folder_source",
+    "load_folders",
+    "parse_folder_data",
+    "parse_folder_rules",
+    "validate_folder_schema",
+    "RuleAction",
 ]

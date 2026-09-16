@@ -51,7 +51,8 @@ def validate(path: Path) -> list[str]:
             else:
                 errors.extend(
                     f"profile {profile!r} references unknown folder {folder!r}"
-                    for folder in selected if folder not in folders
+                    for folder in selected
+                    if folder not in folders
                 )
     return errors
 
