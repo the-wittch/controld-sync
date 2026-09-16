@@ -301,6 +301,8 @@ Changes to synchronization behavior should include a focused regression test.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development and pull
 request guidelines. User-visible changes should be recorded in
 [`CHANGELOG.md`](CHANGELOG.md).
+See [`AI_DISCLOSURE.md`](AI_DISCLOSURE.md) for information about AI-assisted
+development and maintainer responsibility.
 
 ## License
 
