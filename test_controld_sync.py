@@ -7,13 +7,17 @@ import io
 from pathlib import Path
 
 from controld_sync import (SchemaError, _rule_key, _validate_api_base, content_hash,
-                           load_cache, load_config, load_domains, load_folders, save_cache)
+                           load_cache, load_config, load_domains, load_folders, save_cache,
+                           __version__)
 from controld_sync.sources import parse_folder_rules
 from controld_sync.api import ControlDClient
 from controld_sync.sync import _backup_name
 
 
 class LoadDomainsTests(unittest.TestCase):
+    def test_version_is_available(self):
+        self.assertRegex(__version__, r"^\d+\.\d+\.\d+$")
+
     def test_loads_nested_json_and_normalizes_domains(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "list.json"

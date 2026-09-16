@@ -149,7 +149,7 @@ For GitHub-hosted JSON, use an immutable `raw.githubusercontent.com` URL rather
 than the normal GitHub `/blob/` page URL. For example:
 
 ```toml
-"Potentially Malicious IPs" = "https://raw.githubusercontent.com/yokoffing/Control-D-Config/main/folders/potentially-malicious-ips.json"
+"Potentially Malicious IPs" = "https://raw.githubusercontent.com/yokoffing/Control-D-Config/0b9b90d4eeada5d9ca60c532e7ee6dcf8f9a967c/folders/potentially-malicious-ips.json"
 ```
 
 Generic JSON may be a list of domain strings, nested objects containing
@@ -195,9 +195,39 @@ Configure these repository settings before enabling it:
 The workflow uses `--apply`, so it updates Control D folders on every run.
 The API token is passed through the environment and is not written to logs.
 
+The CLI processes every mapped folder even when one fails, prints a structured
+`folders` summary plus a `failures` summary, and exits nonzero after processing
+all folders. This makes partial failures visible without hiding successful
+work.
+
+Check the installed version with:
+
+```sh
+python3 controld_sync.py --version
+```
+
 ## Dependabot
 
 Dependabot checks the pinned GitHub Actions used by the workflow and opens
 reviewable pull requests when updates are available. It runs weekly and does
 not update the pinned HaGeZi source commits; regenerate `config.toml` manually
 when you intentionally want to update those sources.
+
+The restricted auto-merge workflow only considers Dependabot GitHub Actions
+patch/minor updates after required checks pass. It refuses config/source or
+workflow permission changes. Review major updates manually.
+
+## Security and maintenance
+
+The CodeQL workflow uses GitHub's built-in Python analysis. Configuration
+validation checks TOML syntax, mappings, HTTPS sources, immutable 40-character
+GitHub commit URLs, and rejects committed API tokens. Run it locally with
+`python3 scripts/validate_config.py config.toml`.
+
+The scheduled HaGeZi checker compares `config.toml` pins with the upstream
+`main` commit. When safe, it changes only those pins on an automation branch
+and opens a reviewable PR; it never changes production configuration directly.
+If GitHub cannot create or push a PR (for example, repository policy disables
+write permissions for `GITHUB_TOKEN`), it reports the update in the workflow
+log and no config is deployed. The sync workflow still requires the separate
+`CONTROLD_API_TOKEN` secret.

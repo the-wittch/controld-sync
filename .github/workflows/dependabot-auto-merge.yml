@@ -1,0 +1,57 @@
+name: Restricted Dependabot auto-merge
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Approve only safe Actions patch/minor updates after CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr checks "$PR" --repo "$REPO" --required
+          head_sha="$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)"
+          if ! gh run list --repo "$REPO" --workflow ci.yml --commit "$head_sha" \
+            --json status,conclusion --jq 'any(.[]; .status == "completed" and .conclusion == "success")' |
+            grep -qx true; then
+            echo "CI has not passed for this head; refusing auto-merge."
+            exit 0
+          fi
+          files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')"
+          test -n "$files"
+          if printf '%s\n' "$files" | grep -Evq '^\.github/workflows/[^/]+\.ya?ml$'; then
+            echo "Not an Actions-only update; refusing auto-merge."
+            exit 0
+          fi
+          diff="$(gh pr diff "$PR" --repo "$REPO")"
+          if printf '%s' "$diff" | grep -Eq '(^|[+-])(permissions:|[[:space:]]+(contents|pull-requests|security-events):[[:space:]]*(write|none))|(^|[+-]).*(config\.toml|controld_sync/|scripts/)'; then
+            echo "Permission or source/config change detected; refusing auto-merge."
+            exit 0
+          fi
+          title="$(gh pr view "$PR" --repo "$REPO" --json title --jq .title)"
+          if ! printf '%s' "$title" | grep -Eiq 'bump .* from v?[0-9]+\.[0-9]+(\.[0-9]+)? to v?[0-9]+\.[0-9]+(\.[0-9]+)?'; then
+            echo "Could not prove this is a patch/minor version update."
+            exit 0
+          fi
+          if printf '%s' "$title" | grep -Eq 'from v?([0-9]+)\.([0-9]+).* to v?([0-9]+)\.([0-9]+)'; then
+            read -r old_major old_minor new_major new_minor < <(
+              printf '%s' "$title" | sed -E 's/.*from v?([0-9]+)\.([0-9]+).* to v?([0-9]+)\.([0-9]+).*/\1 \2 \3 \4/'
+            )
+            if [ "$old_major" != "$new_major" ] || [ "$new_minor" -lt "$old_minor" ]; then
+              echo "Major or downgrade update; refusing auto-merge."
+              exit 0
+            fi
+          fi
+          gh pr merge "$PR" --repo "$REPO" --auto --squash

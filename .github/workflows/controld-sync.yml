@@ -39,7 +39,10 @@ jobs:
             echo "::error::Create config.toml from config.toml.example."
             exit 1
           }
-          python3 controld_sync.py --config config.toml --apply | tee sync-summary.txt
+          status=0
+          python3 controld_sync.py --config config.toml --apply 2>&1 | tee sync-summary.txt || status=$?
+          echo "Sync completed with status ${status}; all mapped folders were attempted."
+          exit "$status"
 
       - name: Publish sync summary
         if: always()

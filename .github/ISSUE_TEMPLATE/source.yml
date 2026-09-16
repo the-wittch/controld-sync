@@ -1,0 +1,17 @@
+name: Source update or safety issue
+description: Report a source URL, pin, or validation problem
+title: "[Source] "
+labels: ["source"]
+body:
+  - type: input
+    id: url
+    attributes:
+      label: Source URL or folder name
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+    validations:
+      required: true

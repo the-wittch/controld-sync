@@ -1,5 +1,7 @@
 """Synchronize JSON domain lists into Control D custom-rule folders."""
 
+__version__ = "1.0.0"
+
 from .api import ControlDClient, list_profiles
 from .cache import content_hash, load_cache, save_cache
 from .config import API_BASE, _validate_api_base, load_config
@@ -15,4 +17,5 @@ __all__ = [
     "load_folders", "main", "parse_folder_data", "save_cache", "sync_profile",
     "generate_hagezi_config",
     "resolve_profiles", "validate_folder_schema", "list_profiles",
+    "__version__",
 ]

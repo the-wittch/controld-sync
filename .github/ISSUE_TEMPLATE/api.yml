@@ -1,0 +1,18 @@
+name: Control D API issue
+description: Report an API compatibility or synchronization issue
+title: "[API] "
+labels: ["api"]
+body:
+  - type: textarea
+    id: endpoint
+    attributes:
+      label: Endpoint behavior and response shape
+      description: Do not include Authorization headers or tokens.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CLI version
+    validations:
+      required: true

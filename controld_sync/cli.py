@@ -16,10 +16,12 @@ from .errors import SyncError
 from .hagezi import generate_hagezi_config
 from .sources import load_folder_source
 from .sync import resolve_profiles, sync_profile
+from . import __version__
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--config", type=Path, default=Path("config.toml"))
     parser.add_argument("--apply", action="store_true", help="Override config and perform writes")
     parser.add_argument("--dry-run", action="store_true", help="Override config and never perform writes")
@@ -68,12 +70,16 @@ def main() -> int:
         cache_path = (config_dir / str(settings.get("cache_file", ".controld-sync-cache.json"))).resolve()
         cache = {} if args.no_cache else load_cache(cache_path)
         checked_at = datetime.now(timezone.utc).isoformat()
-        folders = {
-            str(name): load_folder_source(
-                str(source) if str(source).startswith(("http://", "https://"))
-                else str((config_dir / str(source)).resolve()), str(name))
-            for name, source in folder_sources.items()
-        }
+        folders = {}
+        failures = []
+        for name, source in folder_sources.items():
+            try:
+                folders[str(name)] = load_folder_source(
+                    str(source) if str(source).startswith(("http://", "https://"))
+                    else str((config_dir / str(source)).resolve()), str(name))
+            except (SyncError, OSError, ValueError, TypeError) as exc:
+                failures.append({"profile": "(source)", "folder": str(name), "error": str(exc)})
+                print(f"error: source {name!r}: {exc}", file=sys.stderr)
         profile_ids = resolve_profiles(client, [str(name) for name in profile_names])
         apply = args.apply or (not args.dry_run and not bool(settings.get("dry_run", True)))
         atomic, fail_on_drift = bool(settings.get("atomic_replace", True)), args.check_drift or bool(settings.get("fail_on_drift", False))
@@ -81,10 +87,16 @@ def main() -> int:
         for profile_name, profile_id in profile_ids.items():
             selected = mappings.get(profile_name)
             if not isinstance(selected, list):
-                raise SyncError(f"[profile_folders] missing mapping for {profile_name!r}")
+                failures.append({"profile": profile_name, "folder": "(mapping)",
+                                 "error": f"[profile_folders] missing mapping for {profile_name!r}"})
+                continue
             for folder_name in selected:
                 if str(folder_name) not in folders:
-                    raise SyncError(f"Profile {profile_name!r} references unknown folder {folder_name!r}")
+                    failures.append({"profile": profile_name, "folder": str(folder_name),
+                                     "error": f"unknown folder {folder_name!r}"})
+                    print(f"error: [{profile_name}] unknown folder {folder_name!r}",
+                          file=sys.stderr)
+                    continue
                 desired = folders[str(folder_name)]
                 digest = content_hash(desired)
                 cache_key = f"{profile_id}:{folder_name}"
@@ -107,13 +119,20 @@ def main() -> int:
                             apply and not args.validate,
                             atomic=atomic, validate_only=args.validate,
                         )
-                except SyncError:
+                except SyncError as exc:
                     cache.pop(cache_key, None)
                     if not args.no_cache and not args.check_updates and not args.validate:
                         save_cache(cache_path, cache)
-                    raise
+                    failures.append({"profile": profile_name, "folder": str(folder_name),
+                                     "error": str(exc)})
+                    print(f"error: [{profile_name}] {folder_name!r}: {exc}", file=sys.stderr)
+                    continue
                 if fail_on_drift and (additions or removals):
-                    raise SyncError(f"[{profile_name}] drift detected in folder {folder_name!r}")
+                    failures.append({"profile": profile_name, "folder": str(folder_name),
+                                     "error": "drift detected"})
+                    print(f"error: [{profile_name}] drift detected in {folder_name!r}",
+                          file=sys.stderr)
+                    continue
                 summaries.append({
                     "profile": profile_name, "profile_id": profile_id, "folder": str(folder_name),
                     "desired": len(desired), "additions": additions, "removals": removals,
@@ -125,9 +144,13 @@ def main() -> int:
                     cache[cache_key] = {"hash": digest, "updated_at": checked_at}
         if summaries:
             print(json.dumps({"folders": summaries}, sort_keys=True))
+        if failures:
+            print(json.dumps({"failures": failures}, sort_keys=True))
         should_save = (apply or bool(settings.get("write_cache", False))) and not args.check_updates and not args.validate
         if not args.no_cache and should_save:
             save_cache(cache_path, cache)
+        if failures:
+            return 1
     except SyncError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

@@ -1,0 +1,53 @@
+name: Check HaGeZi pins
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v5.6.0
+        with:
+          python-version: "3.x"
+      - name: Prepare safe update
+        id: update
+        run: |
+          set -euo pipefail
+          python scripts/check_hagezi_update.py --config config.toml --update | tee hagezi-update.txt
+          if git diff --quiet -- config.toml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            python scripts/validate_config.py config.toml
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open reviewable update PR
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="automation/hagezi-pin-update"
+          git switch -c "$branch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config.toml
+          git commit -m "chore: update HaGeZi commit pins"
+          if ! git push --force-with-lease origin "$branch"; then
+            echo "::warning::HaGeZi update is available, but GITHUB_TOKEN cannot push an update branch."
+            exit 0
+          fi
+          if ! gh pr create --title "chore: update HaGeZi commit pins" \
+            --body "Automated pin update. CI and configuration validation must pass before merge." \
+            --base "${{ github.event.repository.default_branch }}" --head "$branch"; then
+            echo "::warning::HaGeZi branch was pushed, but GITHUB_TOKEN cannot create a pull request."
+          fi
