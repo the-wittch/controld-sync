@@ -193,3 +193,10 @@ Configure these repository settings before enabling it:
 
 The workflow uses `--apply`, so it updates Control D folders on every run.
 The API token is passed through the environment and is not written to logs.
+
+## Dependabot
+
+Dependabot checks the pinned GitHub Actions used by the workflow and opens
+reviewable pull requests when updates are available. It runs weekly and does
+not update the pinned HaGeZi source commits; regenerate `config.toml` manually
+when you intentionally want to update those sources.
