@@ -4,10 +4,10 @@ Sync HaGeZi or arbitrary JSON domain lists into Control D custom-rule
 folders with safe dry runs, action preservation, validation, caching, and
 scheduled GitHub Actions.
 
-[![CI](https://github.com/the-wittch/controld_sync/actions/workflows/ci.yml/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/the-wittch/controld_sync/actions/workflows/codeql.yml/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/codeql.yml)
-[![Sync Control D folders](https://github.com/the-wittch/controld_sync/actions/workflows/controld-sync.yml/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/controld-sync.yml)
-[![Dependabot](https://github.com/the-wittch/controld_sync/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/dependabot/dependabot-updates)
+[![CI](https://github.com/the-wittch/controld-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/the-wittch/controld-sync/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/the-wittch/controld-sync/actions/workflows/codeql.yml/badge.svg)](https://github.com/the-wittch/controld-sync/actions/workflows/codeql.yml)
+[![Sync Control D folders](https://github.com/the-wittch/controld-sync/actions/workflows/controld-sync.yml/badge.svg)](https://github.com/the-wittch/controld-sync/actions/workflows/controld-sync.yml)
+[![Dependabot](https://github.com/the-wittch/controld-sync/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/the-wittch/controld-sync/actions/workflows/dependabot/dependabot-updates)
 
 ## Features
 
@@ -26,17 +26,26 @@ scheduled GitHub Actions.
 
 ## Quick start
 
+Install the package in an isolated environment:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install .
+```
+
 ```sh
 export CONTROLD_API_TOKEN='your-token'
 
-python3 controld_sync.py \
+controld-sync \
   --config config.toml \
   --dry-run
 
-python3 controld_sync.py \
+controld-sync \
   --config config.toml \
   --apply
 ```
+
 
 ## Setup
 
@@ -103,7 +112,7 @@ Generate a token-free configuration containing every HaGeZi Control D folder
 and assign them to a Control D profile named `Init`:
 
 ```sh
-python3 controld_sync.py --generate-hagezi-config config.hagezi.toml
+controld-sync --generate-hagezi-config config.hagezi.toml
 ```
 
 The command discovers the current `*-folder.json` files from HaGeZi's GitHub
@@ -118,7 +127,7 @@ List the profiles available to the token:
 
 ```sh
 CONTROLD_API_TOKEN='your-token' \
-  python3 controld_sync.py --config config.local.toml --list-profiles
+  controld-sync --config config.local.toml --list-profiles
 ```
 
 The output contains each profile name followed by its Control D ID:
@@ -131,19 +140,19 @@ Adults  def456
 Dry-run is the default:
 
 ```sh
-python3 controld_sync.py --config config.toml
+controld-sync --config config.toml
 ```
 
 Apply the changes:
 
 ```sh
-python3 controld_sync.py --config config.toml --apply
+controld-sync --config config.toml --apply
 ```
 
 Validate without changing Control D:
 
 ```sh
-python3 controld_sync.py --config config.toml --validate
+controld-sync --config config.toml --validate
 ```
 
 The synchronizer only removes rules in mapped folders, so other custom rules
@@ -199,7 +208,7 @@ mkdir -p lists
 curl -fsSL 'https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/badware-hoster-folder.json' \
   -o lists/hagezi.json
 CONTROLD_API_TOKEN='your-token' \
-  python3 controld_sync.py lists --profile PROFILE_ID --apply
+  controld-sync lists --profile PROFILE_ID --apply
 ```
 
 The folder name comes from `group.group`; if absent, the filename stem is used.
@@ -230,7 +239,7 @@ work.
 Check the installed version with:
 
 ```sh
-python3 controld_sync.py --version
+controld-sync --version
 ```
 
 ## Dependabot
@@ -282,7 +291,7 @@ Before opening a pull request, run:
 
 ```sh
 python3 -m unittest -v
-python3 -m py_compile controld_sync.py controld_sync/*.py scripts/*.py
+python3 -m py_compile src/controld_sync/*.py scripts/*.py
 python3 scripts/validate_config.py config.toml
 ```
 

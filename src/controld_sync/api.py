@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
-import time
-from email.utils import parsedate_to_datetime
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 from .config import API_BASE
@@ -79,23 +79,27 @@ class ControlDClient:
                                 try:
                                     target = parsedate_to_datetime(retry_after)
                                     if target.tzinfo is None:
-                                        target = target.replace(tzinfo=timezone.utc)
-                                    delay = max(0.0, (target - datetime.now(timezone.utc)).total_seconds())
+                                        target = target.replace(tzinfo=UTC)
+                                    delay = max(0.0, (target - datetime.now(UTC)).total_seconds())
                                 except (TypeError, ValueError):
-                                    delay = self.backoff * (2 ** attempt)
+                                    delay = self.backoff * (2**attempt)
                         else:
-                            delay = self.backoff * (2 ** attempt)
+                            delay = self.backoff * (2**attempt)
                     except (TypeError, ValueError):
-                        delay = self.backoff * (2 ** attempt)
+                        delay = self.backoff * (2**attempt)
                     self.sleep(delay)
                     continue
                 detail = _safe_error(exc.read().decode(errors="replace")[:500], self.token)
-                raise SyncError(f"Control D API {method} {path} failed ({exc.code}): {detail}") from exc
+                raise SyncError(
+                    f"Control D API {method} {path} failed ({exc.code}): {detail}"
+                ) from exc
             except urllib.error.URLError as exc:
                 if method.upper() == "GET" and attempt + 1 < attempts:
-                    self.sleep(self.backoff * (2 ** attempt))
+                    self.sleep(self.backoff * (2**attempt))
                     continue
-                raise SyncError(f"Control D API request failed: {_safe_error(str(exc.reason), self.token)}") from exc
+                raise SyncError(
+                    f"Control D API request failed: {_safe_error(str(exc.reason), self.token)}"
+                ) from exc
         if not raw:
             return {}
         try:

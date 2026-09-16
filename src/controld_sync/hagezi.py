@@ -16,7 +16,9 @@ RAW_URL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/{ref}/control
 
 
 def _get_json(url: str) -> Any:
-    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "controld-sync"})
+    request = urllib.request.Request(
+        url, headers={"Accept": "application/vnd.github+json", "User-Agent": "controld-sync"}
+    )
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             return json.loads(response.read())
@@ -38,7 +40,8 @@ def generate_hagezi_config(
     if not isinstance(listing, list):
         raise SyncError("HaGeZi GitHub contents response was not a list")
     entries = [
-        item for item in listing
+        item
+        for item in listing
         if isinstance(item, dict)
         and isinstance(item.get("name"), str)
         and item["name"].endswith("-folder.json")
@@ -55,9 +58,7 @@ def generate_hagezi_config(
         folder_name = group.get("group") if isinstance(group, dict) else None
         if not isinstance(folder_name, str) or not folder_name.strip():
             raise SyncError(f"HaGeZi folder {name} has no valid group.group name")
-        folders[folder_name.strip()] = RAW_URL.format(
-            ref=pinned_ref, name=name
-        )
+        folders[folder_name.strip()] = RAW_URL.format(ref=pinned_ref, name=name)
 
     quote = json.dumps
     lines = [
@@ -74,8 +75,14 @@ def generate_hagezi_config(
         "[folders]",
     ]
     lines.extend(f"{quote(name)} = {quote(source)}" for name, source in sorted(folders.items()))
-    lines.extend(["", "[profile_folders]", f"{quote(profile_name)} = [" +
-                  ", ".join(quote(name) for name in sorted(folders)) + "]", ""])
+    lines.extend(
+        [
+            "",
+            "[profile_folders]",
+            f"{quote(profile_name)} = [" + ", ".join(quote(name) for name in sorted(folders)) + "]",
+            "",
+        ]
+    )
     try:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text("\n".join(lines), encoding="utf-8")

@@ -21,12 +21,12 @@ jobs:
       CONTROLD_API_TOKEN: ${{ secrets.CONTROLD_API_TOKEN }}
     steps:
       - name: Check out source lists
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.2.2
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v5.6.0
         with:
-          python-version: "3.x"
+          python-version: "3.11"
 
       - name: Run Control D sync
         shell: bash
@@ -41,7 +41,7 @@ jobs:
             exit 1
           }
           status=0
-          python3 controld_sync.py --config config.toml --apply 2>&1 | tee sync-summary.txt || status=$?
+          controld-sync --config config.toml --apply 2>&1 | tee sync-summary.txt || status=$?
           echo "Sync completed with status ${status}; all mapped folders were attempted."
           exit "$status"
 

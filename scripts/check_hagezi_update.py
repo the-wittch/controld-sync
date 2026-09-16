@@ -16,9 +16,9 @@ URL = re.compile(r"(https://raw\.githubusercontent\.com/hagezi/dns-blocklists/)(
 
 
 def latest_sha() -> str:
-    request = urllib.request.Request(API, headers={
-        "Accept": "application/vnd.github+json", "User-Agent": "controld-sync"
-    })
+    request = urllib.request.Request(
+        API, headers={"Accept": "application/vnd.github+json", "User-Agent": "controld-sync"}
+    )
     with urllib.request.urlopen(request, timeout=30) as response:
         value = json.loads(response.read())
     sha = value.get("sha") if isinstance(value, dict) else None
@@ -30,8 +30,9 @@ def latest_sha() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=Path("config.toml"))
-    parser.add_argument("--update", action="store_true",
-                        help="write only safe HaGeZi pin replacements")
+    parser.add_argument(
+        "--update", action="store_true", help="write only safe HaGeZi pin replacements"
+    )
     args = parser.parse_args()
     problems = validate(args.config)
     if problems:
