@@ -1,0 +1,39 @@
+[settings]
+api_token = ""
+dry_run = true
+cache_file = ".controld-sync-cache.json"
+atomic_replace = true
+fail_on_drift = false
+
+[profiles]
+names = ["Baseline Profile"]
+
+[folders]
+"Amazon Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-amazon-folder.json"
+"Apple PR allow" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/apple-private-relay-allow-folder.json"
+"Apple Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-apple-folder.json"
+"Badware Hoster" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/badware-hoster-folder.json"
+"Huawei Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-huawei-folder.json"
+"Known Issues allow" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/ultimate-known_issues-allow-folder.json"
+"LG webOS Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-lgwebos-folder.json"
+"META Tracker allow" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/meta-tracker-allow-folder.json"
+"Microsoft Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-microsoft-folder.json"
+"Microsoft Tracker allow" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/microsoft-allow-folder.json"
+"Most Abused TLDs" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-tlds-combined-folder.json"
+"No Safesearch Support" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/nosafesearch-folder.json"
+"OPPO/Realme Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-oppo-realme-folder.json"
+"Referral" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/referral-allow-folder.json"
+"Roku Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-roku-folder.json"
+"Samsung Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-samsung-folder.json"
+"Spam IDNs" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-idns-folder.json"
+"Spam TLDs" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-tlds-folder.json"
+"Spam TLDs allow" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-tlds-allow-folder.json"
+"Spam TLDs light" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-tlds-light-folder.json"
+"Tiktok Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-tiktok-folder.json"
+"Tiktok Tracker - aggressive" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-tiktok-aggressive-folder.json"
+"Vivo Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-vivo-folder.json"
+"Xiaomi Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-xiaomi-folder.json"
+"Potentially Malicious IPs" = "https://raw.githubusercontent.com/yokoffing/Control-D-Config/0b9b90d4eeada5d9ca60c532e7ee6dcf8f9a967c/folders/potentially-malicious-ips.json"
+
+[profile_folders]
+"Baseline Profile" = ["Badware Hoster", "Known Issues allow", "Microsoft Tracker", "Most Abused TLDs", "Potentially Malicious IPs", "Referral", "Samsung Tracker", "Spam IDNs", "Spam TLDs", "Spam TLDs allow", "Tiktok Tracker"]

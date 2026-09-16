@@ -1,0 +1,20 @@
+# The GitHub Actions workflow reads the committed, token-free config.toml.
+# Keep personal secret-bearing variants ignored.
+*.local.toml
+
+# Local sync state and interrupted atomic cache writes.
+.controld-sync-cache.json
+.controld-sync-cache.json.new
+*.json.new
+
+# Python and local tooling artifacts.
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Local workflow output.
+sync-summary.txt
+
+# Common OS/editor files.
+.DS_Store

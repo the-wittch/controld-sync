@@ -1,0 +1,27 @@
+[settings]
+# Prefer CONTROLD_API_TOKEN in CI so the token is not committed.
+api_token = ""
+dry_run = true
+# Keep a content hash cache next to this file only on apply runs.
+cache_file = ".controld-sync-cache.json"
+# Replace changed groups through a validated _OLD backup.
+atomic_replace = true
+# Set true (or pass --check-drift) to fail instead of reporting differences.
+fail_on_drift = false
+# Source cache keys include both profile and folder; timestamps are recorded.
+# check-only CLI modes never advance this cache.
+
+[profiles]
+# Exact Control D profile names, as shown in the dashboard.
+names = ["Kids", "Adults"]
+
+[folders]
+# Values may be HTTPS JSON URLs, JSON files, or directories.
+# Sources are pinned to reviewed commits. Update deliberately when upstream changes.
+"Badware Hoster" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/badware-hoster-folder.json"
+"Most Abused TLDs" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-tlds-combined-folder.json"
+"Potentially Malicious IPs" = "https://raw.githubusercontent.com/yokoffing/Control-D-Config/0b9b90d4eeada5d9ca60c532e7ee6dcf8f9a967c/folders/potentially-malicious-ips.json"
+
+[profile_folders]
+Kids = ["Badware Hoster", "Most Abused TLDs", "Potentially Malicious IPs"]
+Adults = ["Badware Hoster", "Potentially Malicious IPs"]
