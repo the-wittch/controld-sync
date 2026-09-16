@@ -1,5 +1,7 @@
 # Control D JSON sync
 
+[![Sync Control D folders](https://github.com/the-wittch/controld_sync/actions/workflows/controld-sync.yml/badge.svg)](https://github.com/the-wittch/controld_sync/actions/workflows/controld-sync.yml)
+
 This small, dependency-free CLI synchronizes JSON folder data into matching
 custom-rule folders on one or more Control D profiles. It is configured with
 TOML, modeled after the reference `controld-hagezi-sync` project, and supports the
