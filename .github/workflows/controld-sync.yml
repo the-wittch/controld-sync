@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: controld-sync
@@ -59,3 +60,16 @@ jobs:
               echo "The sync command did not produce a summary."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify GitHub issue on scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="Scheduled Control D sync failed"
+          body="The scheduled sync failed in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID.
+
+          Review the workflow logs and summary before rerunning. This issue was created automatically."
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
