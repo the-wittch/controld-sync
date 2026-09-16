@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "controld-sync"
-version = "1.0.0"
+version = "1.1.0"
 description = "Synchronize JSON domain lists into Control D custom-rule folders."
 readme = "README.md"
 license = { file = "LICENSE" }

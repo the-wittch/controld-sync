@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -29,3 +29,11 @@ jobs:
           python -m unittest discover -s tests -v
       - name: Validate configuration
         run: python scripts/validate_config.py config.toml
+
+  test:
+    if: always()
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report matrix result
+        run: test "${{ needs.quality.result }}" = "success"
