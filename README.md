@@ -259,6 +259,11 @@ write permissions for `GITHUB_TOKEN`), it reports the update in the workflow
 log and no config is deployed. The sync workflow still requires the separate
 `CONTROLD_API_TOKEN` secret.
 
+Scheduled sync failures create a GitHub issue with a link to the failed run.
+The workflow needs repository `issues: write` permission for this notification.
+Tag pushes matching `v*.*.*` run validation and create a GitHub Release with
+generated notes through [`release.yml`](.github/workflows/release.yml).
+
 ## Limitations
 
 - Control D may deduplicate rules across folders, so source and remote counts
@@ -283,6 +288,10 @@ python3 scripts/validate_config.py config.toml
 
 Keep credentials out of commits, issues, pull requests, and workflow output.
 Changes to synchronization behavior should include a focused regression test.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development and pull
+request guidelines. User-visible changes should be recorded in
+[`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
