@@ -27,8 +27,10 @@ def _domain(value: Any) -> str | None:
     if value.startswith("www."):
         value = value[4:]
     labels = value.split(".")
-    if len(labels) < 2 or any(not label or any(
+    if any(not label or any(
         c not in "abcdefghijklmnopqrstuvwxyz0123456789-_*" for c in label) for label in labels):
+        return None
+    if len(labels) == 1 and not re.fullmatch(r"[a-z0-9][a-z0-9_*_-]*", labels[0]):
         return None
     return value
 

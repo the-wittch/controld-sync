@@ -44,6 +44,7 @@ class LoadDomainsTests(unittest.TestCase):
         self.assertEqual(_rule_key("@CN"), "@CN")
         self.assertEqual(_rule_key("*.actor"), "*.ACTOR")
         self.assertEqual(_rule_key("777*.livepartners.com"), "777*.livepartners.com")
+        self.assertEqual(_rule_key("actor"), "actor")
 
     def test_preserves_control_d_rule_actions(self):
         rules = parse_folder_rules({
