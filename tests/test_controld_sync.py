@@ -22,7 +22,7 @@ from controld_sync import (
 )
 from controld_sync.api import ControlDClient
 from controld_sync.sources import parse_folder_rules
-from controld_sync.sync import _backup_name
+from controld_sync.sync import _backup_name, resolve_profiles, sync_profile
 
 
 class LoadDomainsTests(unittest.TestCase):
@@ -156,6 +156,76 @@ class LoadDomainsTests(unittest.TestCase):
             with self.assertRaises(SyncError):
                 client.request("/groups", "POST", {})
         self.assertEqual(calls, ["POST"])
+
+    def test_sync_smoke_exercises_profile_lookup_and_rule_writes(self):
+        responses = {
+            ("GET", "/profiles"): {"body": {"profiles": [{"name": "Kids", "PK": "profile-1"}]}},
+            ("GET", "/profiles/profile-1/groups"): {
+                "body": {"groups": [{"name": "Ads", "PK": "group-1"}]}
+            },
+            ("GET", "/profiles/profile-1/rules/group-1"): {
+                "body": {"rules": [{"PK": "old.example", "action": {"do": 0, "status": 1}}]}
+            },
+        }
+        requests = []
+
+        class Response:
+            def __init__(self, payload):
+                self.payload = json.dumps(payload).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return self.payload
+
+        def opener(request, timeout):
+            path = request.full_url.removeprefix("https://api.controld.test")
+            method = request.method
+            body = json.loads(request.data) if request.data else None
+            requests.append((method, path, body, request.headers["Authorization"]))
+            if (method, path) in responses:
+                return Response(responses[(method, path)])
+            if method == "POST" and path == "/profiles/profile-1/rules":
+                return Response({})
+            if method == "DELETE" and path == "/profiles/profile-1/rules/old.example":
+                return Response({})
+            raise AssertionError(f"unexpected Control D request: {method} {path}")
+
+        client = ControlDClient(
+            "secret",
+            base_url="https://api.controld.test",
+            sleep=lambda _: None,
+        )
+        with patch("urllib.request.urlopen", opener):
+            profiles = resolve_profiles(client, ["Kids"])
+            result = sync_profile(
+                client,
+                profiles["Kids"],
+                "Ads",
+                {"new.example": (0, 1)},
+                apply=True,
+                atomic=False,
+            )
+
+        self.assertEqual(result, (1, 1))
+        self.assertEqual(
+            [(method, path) for method, path, _, _ in requests],
+            [
+                ("GET", "/profiles"),
+                ("GET", "/profiles/profile-1/groups"),
+                ("GET", "/profiles/profile-1/rules/group-1"),
+                ("GET", "/profiles/profile-1/rules/group-1"),
+                ("POST", "/profiles/profile-1/rules"),
+                ("DELETE", "/profiles/profile-1/rules/old.example"),
+            ],
+        )
+        self.assertEqual(requests[4][2]["hostnames"], ["new.example"])
+        self.assertEqual(requests[4][2]["group"], "group-1")
+        self.assertTrue(all(headers == "Bearer secret" for _, _, _, headers in requests))
 
 
 if __name__ == "__main__":
