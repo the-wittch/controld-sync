@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [1.1.2] - 2026-09-20
+
+### Fixed
+
+- Install the packaged CLI before scheduled GitHub Actions synchronization.
+
 ## [1.1.0] - 2026-09-15
 
 ### Added
