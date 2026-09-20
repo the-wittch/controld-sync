@@ -28,6 +28,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install Control D sync
+        run: python -m pip install .
+
       - name: Run Control D sync
         shell: bash
         run: |
