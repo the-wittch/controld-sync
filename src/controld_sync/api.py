@@ -89,8 +89,6 @@ class ControlDClient:
                         delay = self.backoff * (2**attempt)
                     self.sleep(delay)
                     continue
-
-                
                 try:
                     detail_raw = exc.read().decode(errors="replace")
                     detail_json = json.loads(detail_raw)
@@ -103,7 +101,6 @@ class ControlDClient:
                         }
                 except Exception:
                     pass
-
                 detail = _safe_error(exc.read().decode(errors="replace")[:500], self.token)
                 raise SyncError(
                     f"Control D API {method} {path} failed ({exc.code}): {detail}"
