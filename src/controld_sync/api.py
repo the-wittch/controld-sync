@@ -89,6 +89,7 @@ class ControlDClient:
                         delay = self.backoff * (2**attempt)
                     self.sleep(delay)
                     continue
+                raw_error = exc.read().decode(errors="replace")
                 try:
                     detail_raw = exc.read().decode(errors="replace")
                     detail_json = json.loads(detail_raw)
