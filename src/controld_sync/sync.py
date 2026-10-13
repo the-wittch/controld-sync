@@ -96,6 +96,9 @@ def sync_profile(
                     "group": folder_id,
                 },
             )
+            if isinstance(response, dict) and response.get("duplicate"):
+                print(f"[{profile_id}] skipped duplicate rules in {folder_name!r}: {values[start:start+500]}")
+                continue
     for domain in removals:
         client.request(prefix + "/rules/" + urllib.parse.quote(domain, safe=""), "DELETE")
     return len(additions), len(removals)
