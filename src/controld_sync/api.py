@@ -91,8 +91,7 @@ class ControlDClient:
                     continue
                 raw_error = exc.read().decode(errors="replace")
                 try:
-                    detail_raw = exc.read().decode(errors="replace")
-                    detail_json = json.loads(detail_raw)
+                    detail_json = json.loads(raw_error)
                     err = detail_json.get("error", {})
                     if err.get("code") == 40003:
                         return {
@@ -102,7 +101,8 @@ class ControlDClient:
                         }
                 except Exception:
                     pass
-                detail = _safe_error(exc.read().decode(errors="replace")[:500], self.token)
+                # Otherwise treat as real failure
+                detail = _safe_error(raw_error[:500], self.token)
                 raise SyncError(
                     f"Control D API {method} {path} failed ({exc.code}): {detail}"
                 ) from exc
