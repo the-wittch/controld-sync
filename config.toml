@@ -19,7 +19,6 @@ names = ["Baseline Profile"]
 "META Tracker allow" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/meta-tracker-allow-folder.json"
 "Microsoft Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-microsoft-folder.json"
 "Microsoft Tracker allow" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/microsoft-allow-folder.json"
-"Most Abused TLDs" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-tlds-combined-folder.json"
 "No Safesearch Support" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/nosafesearch-folder.json"
 "OPPO/Realme Tracker" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/native-tracker-oppo-realme-folder.json"
 "Referral" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/referral-allow-folder.json"
@@ -36,4 +35,6 @@ names = ["Baseline Profile"]
 "Potentially Malicious IPs" = "https://raw.githubusercontent.com/yokoffing/Control-D-Config/0b9b90d4eeada5d9ca60c532e7ee6dcf8f9a967c/folders/potentially-malicious-ips.json"
 
 [profile_folders]
-"Baseline Profile" = ["Badware Hoster", "Known Issues allow", "Microsoft Tracker", "Most Abused TLDs", "Potentially Malicious IPs", "Referral", "Samsung Tracker", "Spam IDNs", "Spam TLDs", "Spam TLDs allow", "Tiktok Tracker"]
+# Most Abused TLDs (spam-tlds-combined) fully contains Spam TLDs; Control D
+# custom rules are unique per profile, so only one of those folders can be mapped.
+"Baseline Profile" = ["Badware Hoster", "Known Issues allow", "Microsoft Tracker", "Potentially Malicious IPs", "Referral", "Samsung Tracker", "Spam IDNs", "Spam TLDs", "Spam TLDs allow", "Tiktok Tracker"]

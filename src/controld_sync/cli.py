@@ -16,7 +16,7 @@ from .config import API_BASE, _validate_api_base, load_config
 from .errors import SyncError
 from .hagezi import generate_hagezi_config
 from .sources import load_folder_source
-from .sync import resolve_profiles, sync_profile
+from .sync import find_folder_overlaps, resolve_profiles, sync_profile
 
 
 def main() -> int:
@@ -131,6 +131,25 @@ def main() -> int:
                         "error": f"[profile_folders] missing mapping for {profile_name!r}",
                     }
                 )
+                continue
+            mapped_rules = {
+                str(name): folders[str(name)]
+                for name in selected
+                if str(name) in folders
+            }
+            overlaps = find_folder_overlaps(mapped_rules)
+            for message in overlaps:
+                failures.append(
+                    {
+                        "profile": profile_name,
+                        "folder": "(overlap)",
+                        "error": message,
+                    }
+                )
+                print(f"error: [{profile_name}] {message}", file=sys.stderr)
+            if overlaps:
+                # Skip writes for this profile; overlapping sources would hit
+                # Control D's per-profile unique custom-rule constraint.
                 continue
             for folder_name in selected:
                 if str(folder_name) not in folders:

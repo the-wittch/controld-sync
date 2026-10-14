@@ -161,14 +161,19 @@ Control D folder exports retain each rule's `action.do` and `action.status`
 values, so HaGeZi allow folders are imported as allow rules rather than being
 treated as block rules. Generic JSON sources without action metadata default to
 `do = 0`, `status = 1`.
-When a mapped folder changes, apply mode builds a replacement group, validates
-the imported rule set, and retains the previous set in a `<folder>_OLD` backup. Backup names are shortened safely to Control D's
-32-character limit. GET requests retry transient failures with
+When a mapped folder changes, apply mode snapshots the previous rules in
+memory, deletes the folder (Control D custom rules are unique per profile, so
+they cannot be copied into a live backup group), recreates it with the desired
+set, and validates the result. Leftover `<folder>_OLD` / `<folder>_NEW` groups
+from interrupted runs are cleaned up first; backup names are shortened safely
+to Control D's 32-character limit. GET requests retry transient failures with
 `Retry-After`/exponential backoff; write requests are never replayed
 automatically.
-If validation or a later API request fails, it attempts to remove the partial
-replacement and restore the original group. Set `atomic_replace = false` to
-use the legacy add/remove update strategy.
+If validation or a later API request fails after the original folder was
+deleted, it attempts to recreate the folder from the in-memory snapshot.
+Set `atomic_replace = false` to use the incremental add/remove update strategy
+instead. Mapped folders for the same profile must not share rule hostnames;
+overlapping sources fail before any writes.
 
 The Control D/HaGeZi folder format works directly:
 
@@ -197,7 +202,8 @@ or a combination:
 ```
 
 The script batches additions in groups of 500 and normalizes case, trailing
-dots, `*.example` and `||example^` entries.
+dots, and `||example^` entries. Control D wildcard PKs such as `*.ACTOR` and
+`*.edu.eu` are preserved; bare domains are lowercased.
 
 ## HaGeZi example
 

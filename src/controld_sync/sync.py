@@ -69,6 +69,7 @@ def sync_profile(
         return 0, 0
     if not apply:
         return len(additions), len(removals)
+    _cleanup_stale_backups(client, prefix, folder_name)
     if atomic and folder is not None and (additions or removals):
         return _replace_group(
             client,
@@ -84,18 +85,7 @@ def sync_profile(
     changes = {key: desired[key] for key in additions + action_changes}
     for domain in action_changes:
         client.request(prefix + "/rules/" + urllib.parse.quote(domain, safe=""), "DELETE")
-    for (do, status), values in _group_by_action(changes):
-        for start in range(0, len(values), 500):
-            client.request(
-                prefix + "/rules",
-                "POST",
-                {
-                    "hostnames": values[start : start + 500],
-                    "do": do,
-                    "status": status,
-                    "group": folder_id,
-                },
-            )
+    _write_group_rules(client, prefix, folder_id, changes)
     for domain in removals:
         client.request(prefix + "/rules/" + urllib.parse.quote(domain, safe=""), "DELETE")
     return len(additions), len(removals)
@@ -154,6 +144,53 @@ def _delete_named_group(
         client.request(prefix + "/groups/" + urllib.parse.quote(stale_id, safe=""), "DELETE")
 
 
+def _write_group_rules(
+    client: ControlDClient,
+    prefix: str,
+    group_id: str,
+    rules: dict[str, RuleAction],
+) -> None:
+    for (do, status), values in _group_by_action(rules):
+        for start in range(0, len(values), 500):
+            client.request(
+                prefix + "/rules",
+                "POST",
+                {
+                    "hostnames": values[start : start + 500],
+                    "do": do,
+                    "status": status,
+                    "group": group_id,
+                },
+            )
+
+
+def _create_group_with_rules(
+    client: ControlDClient,
+    prefix: str,
+    folder_name: str,
+    rules: dict[str, RuleAction],
+    profile_id: str,
+) -> str:
+    do, status = _folder_action(rules)
+    response = client.request(
+        prefix + "/groups",
+        "POST",
+        {"name": folder_name, "do": do, "status": status},
+    )
+    group_id = _id(response)
+    if not group_id:
+        raise SyncError(f"[{profile_id}] group creation returned no id for {folder_name!r}")
+    _write_group_rules(client, prefix, group_id, rules)
+    return group_id
+
+
+def _cleanup_stale_backups(client: ControlDClient, prefix: str, folder_name: str) -> None:
+    """Remove leftover atomic-replace backup groups from interrupted runs."""
+    groups = _items(client.request(prefix + "/groups"))
+    for suffix in ("OLD", "NEW"):
+        _delete_named_group(client, prefix, groups, _backup_name(folder_name, suffix))
+
+
 def _replace_group(
     client: ControlDClient,
     prefix: str,
@@ -165,129 +202,39 @@ def _replace_group(
     additions: int,
     removals: int,
 ) -> tuple[int, int]:
-    new_id = None
+    """Replace a folder by deleting it, then recreating from an in-memory snapshot.
+
+    Control D custom rules are unique per profile, so rules cannot be copied into a
+    backup group while they still exist in the original. Snapshot the previous set,
+    delete the folder (which frees the hostnames), write the desired set, and on
+    failure attempt to restore the snapshotted original.
+    """
+    deleted = False
     try:
-        groups = _items(client.request(prefix + "/groups"))
-        old_name, new_name = _backup_name(folder_name, "OLD"), _backup_name(folder_name, "NEW")
-        _delete_named_group(client, prefix, groups, old_name)
-        _delete_named_group(client, prefix, groups, new_name)
-        old_do, old_status = _folder_action(original)
-        backup = client.request(
-            prefix + "/groups",
-            "POST",
-            {
-                "name": old_name,
-                "do": old_do,
-                "status": old_status,
-            },
-        )
-        backup_id = _id(backup)
-        if not backup_id:
-            raise SyncError(f"[{profile_id}] backup group creation returned no id")
-        for (do, status), old_values in _group_by_action(original):
-            for start in range(0, len(old_values), 500):
-                client.request(
-                    prefix + "/rules",
-                    "POST",
-                    {
-                        "hostnames": old_values[start : start + 500],
-                        "do": do,
-                        "status": status,
-                        "group": backup_id,
-                    },
-                )
-        new_do, new_status = _folder_action(desired)
-        replacement = client.request(
-            prefix + "/groups",
-            "POST",
-            {
-                "name": new_name,
-                "do": new_do,
-                "status": new_status,
-            },
-        )
-        new_id = _id(replacement)
-        if not new_id:
-            raise SyncError(f"[{profile_id}] replacement group creation returned no id")
-        for (do, status), values in _group_by_action(desired):
-            for start in range(0, len(values), 500):
-                client.request(
-                    prefix + "/rules",
-                    "POST",
-                    {
-                        "hostnames": values[start : start + 500],
-                        "do": do,
-                        "status": status,
-                        "group": new_id,
-                    },
-                )
-        if _read_group_rules(client, prefix, new_id) != desired:
-            raise SyncError(f"[{profile_id}] post-import validation failed for {folder_name!r}")
+        _cleanup_stale_backups(client, prefix, folder_name)
         client.request(prefix + "/groups/" + urllib.parse.quote(folder_id, safe=""), "DELETE")
-        final = client.request(
-            prefix + "/groups",
-            "POST",
-            {
-                "name": folder_name,
-                "do": new_do,
-                "status": new_status,
-            },
-        )
-        final_id = _id(final)
-        if not final_id:
-            raise SyncError(f"[{profile_id}] final group creation returned no id")
-        for (do, status), values in _group_by_action(desired):
-            for start in range(0, len(values), 500):
-                client.request(
-                    prefix + "/rules",
-                    "POST",
-                    {
-                        "hostnames": values[start : start + 500],
-                        "do": do,
-                        "status": status,
-                        "group": final_id,
-                    },
-                )
+        deleted = True
+        final_id = _create_group_with_rules(client, prefix, folder_name, desired, profile_id)
         if _read_group_rules(client, prefix, final_id) != desired:
             raise SyncError(
                 f"[{profile_id}] final post-import validation failed for {folder_name!r}"
             )
-        client.request(prefix + "/groups/" + urllib.parse.quote(new_id, safe=""), "DELETE")
-        client.request(prefix + "/groups/" + urllib.parse.quote(backup_id, safe=""), "DELETE")
         return additions, removals
     except (SyncError, OSError, ValueError, TypeError) as exc:
-        if new_id:
+        if deleted:
             try:
-                client.request(prefix + "/groups/" + urllib.parse.quote(new_id, safe=""), "DELETE")
+                groups = _items(client.request(prefix + "/groups"))
+                existing = _group_named(groups, folder_name)
+                if existing is not None:
+                    existing_id = _id(existing)
+                    if existing_id:
+                        client.request(
+                            prefix + "/groups/" + urllib.parse.quote(existing_id, safe=""),
+                            "DELETE",
+                        )
+                _create_group_with_rules(client, prefix, folder_name, original, profile_id)
             except SyncError:
                 pass
-        try:
-            old_do, old_status = _folder_action(original)
-            restored = client.request(
-                prefix + "/groups",
-                "POST",
-                {
-                    "name": folder_name,
-                    "do": old_do,
-                    "status": old_status,
-                },
-            )
-            restored_id = _id(restored)
-            if restored_id:
-                for (do, status), values in _group_by_action(original):
-                    for start in range(0, len(values), 500):
-                        client.request(
-                            prefix + "/rules",
-                            "POST",
-                            {
-                                "hostnames": values[start : start + 500],
-                                "do": do,
-                                "status": status,
-                                "group": restored_id,
-                            },
-                        )
-        except SyncError:
-            pass
         if isinstance(exc, SyncError):
             raise
         raise SyncError(f"[{profile_id}] atomic replacement failed: {exc}") from exc
@@ -305,6 +252,25 @@ def _folder_action(rules: dict[str, RuleAction]) -> RuleAction:
     return rules[sorted(rules)[0]] if rules else DEFAULT_ACTION
 
 
+def find_folder_overlaps(
+    folder_rules: dict[str, dict[str, RuleAction]],
+) -> list[str]:
+    """Return human-readable messages for rule keys shared across folders."""
+    names = sorted(folder_rules)
+    messages: list[str] = []
+    for index, left in enumerate(names):
+        left_keys = set(folder_rules[left])
+        for right in names[index + 1 :]:
+            overlap = left_keys & set(folder_rules[right])
+            if not overlap:
+                continue
+            sample = ", ".join(sorted(overlap)[:3])
+            messages.append(
+                f"{left!r} and {right!r} share {len(overlap)} rule(s) (e.g. {sample})"
+            )
+    return messages
+
+
 def resolve_profiles(client: ControlDClient, names: list[str]) -> dict[str, str]:
     available = _items(client.request("/profiles"))
     resolved = {}
@@ -319,4 +285,4 @@ def resolve_profiles(client: ControlDClient, names: list[str]) -> dict[str, str]
     return resolved
 
 
-__all__ = ["resolve_profiles", "sync_profile"]
+__all__ = ["find_folder_overlaps", "resolve_profiles", "sync_profile"]

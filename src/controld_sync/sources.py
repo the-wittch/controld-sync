@@ -41,13 +41,20 @@ def _domain(value: Any) -> str | None:
 def _rule_key(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
-    value = value.strip().upper()
-    if re.fullmatch(r"@[A-Z0-9_-]+", value):
-        return value
-    if re.fullmatch(r"\*\.[A-Z0-9-]+", value):
-        return value
-    return _domain(value.lower())
-
+    stripped = value.strip()
+    upper = stripped.upper()
+    if re.fullmatch(r"@[A-Z0-9_-]+", upper):
+        return upper
+    # Preserve Control D wildcard PKs (*.ACTOR, *.edu.eu, *.co.com). Only bare
+    # domains go through _domain, which strips a leading "*." for generic lists.
+    if upper.startswith("*."):
+        rest = _domain(stripped[2:].lower())
+        if not rest:
+            return None
+        if "." not in rest:
+            return "*." + rest.upper()
+        return "*." + rest
+    return _domain(stripped.lower())
 
 def _walk_domains(value: Any) -> Iterable[str]:
     if isinstance(value, str):

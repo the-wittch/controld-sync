@@ -22,7 +22,12 @@ from controld_sync import (
 )
 from controld_sync.api import ControlDClient
 from controld_sync.sources import parse_folder_rules
-from controld_sync.sync import _backup_name, resolve_profiles, sync_profile
+from controld_sync.sync import (
+    _backup_name,
+    find_folder_overlaps,
+    resolve_profiles,
+    sync_profile,
+)
 
 
 class LoadDomainsTests(unittest.TestCase):
@@ -40,7 +45,9 @@ class LoadDomainsTests(unittest.TestCase):
                     }
                 )
             )
-            self.assertEqual(load_domains(path), ["ads.example", "cdn.example", "tracker.example"])
+            self.assertEqual(
+                load_domains(path), ["*.cdn.example", "ads.example", "tracker.example"]
+            )
 
     def test_directory_combines_files_and_deduplicates(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -66,6 +73,8 @@ class LoadDomainsTests(unittest.TestCase):
         self.assertEqual(_rule_key("@RU"), "@RU")
         self.assertEqual(_rule_key("@CN"), "@CN")
         self.assertEqual(_rule_key("*.actor"), "*.ACTOR")
+        self.assertEqual(_rule_key("*.edu.eu"), "*.edu.eu")
+        self.assertEqual(_rule_key("*.co.com"), "*.co.com")
         self.assertEqual(_rule_key("777*.livepartners.com"), "777*.livepartners.com")
         self.assertEqual(_rule_key("actor"), "actor")
 
@@ -219,13 +228,100 @@ class LoadDomainsTests(unittest.TestCase):
                 ("GET", "/profiles/profile-1/groups"),
                 ("GET", "/profiles/profile-1/rules/group-1"),
                 ("GET", "/profiles/profile-1/rules/group-1"),
+                ("GET", "/profiles/profile-1/groups"),
                 ("POST", "/profiles/profile-1/rules"),
                 ("DELETE", "/profiles/profile-1/rules/old.example"),
             ],
         )
-        self.assertEqual(requests[4][2]["hostnames"], ["new.example"])
-        self.assertEqual(requests[4][2]["group"], "group-1")
+        self.assertEqual(requests[5][2]["hostnames"], ["new.example"])
+        self.assertEqual(requests[5][2]["group"], "group-1")
         self.assertTrue(all(headers == "Bearer secret" for _, _, _, headers in requests))
+
+    def test_find_folder_overlaps_reports_shared_rules(self):
+        messages = find_folder_overlaps(
+            {
+                "Spam TLDs": {"*.ACTOR": (0, 1), "other.example": (0, 1)},
+                "Most Abused TLDs": {"*.ACTOR": (0, 1), "extra.example": (0, 1)},
+            }
+        )
+        self.assertEqual(len(messages), 1)
+        self.assertIn("*.ACTOR", messages[0])
+        self.assertIn("Spam TLDs", messages[0])
+        self.assertIn("Most Abused TLDs", messages[0])
+
+    def test_atomic_replace_deletes_before_recreating(self):
+        rules = {
+            "body": {"rules": [{"PK": "old.example", "action": {"do": 0, "status": 1}}]}
+        }
+        state = {"groups": [{"name": "Ads", "PK": "group-1"}], "rules": dict(rules)}
+        requests = []
+
+        class Response:
+            def __init__(self, payload):
+                self.payload = json.dumps(payload).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return self.payload
+
+        def opener(request, timeout):
+            path = request.full_url.removeprefix("https://api.controld.test")
+            method = request.method
+            body = json.loads(request.data) if request.data else None
+            requests.append((method, path, body))
+            if method == "GET" and path == "/profiles/profile-1/groups":
+                return Response({"body": {"groups": list(state["groups"])}})
+            if method == "GET" and path == "/profiles/profile-1/rules/group-1":
+                return Response(state["rules"])
+            if method == "GET" and path == "/profiles/profile-1/rules/group-2":
+                return Response(
+                    {
+                        "body": {
+                            "rules": [
+                                {"PK": "new.example", "action": {"do": 0, "status": 1}}
+                            ]
+                        }
+                    }
+                )
+            if method == "DELETE" and path == "/profiles/profile-1/groups/group-1":
+                state["groups"] = []
+                return Response({})
+            if method == "POST" and path == "/profiles/profile-1/groups":
+                state["groups"] = [{"name": body["name"], "PK": "group-2"}]
+                return Response({"body": {"groups": [{"PK": "group-2"}]}})
+            if method == "POST" and path == "/profiles/profile-1/rules":
+                return Response({})
+            raise AssertionError(f"unexpected Control D request: {method} {path}")
+
+        client = ControlDClient(
+            "secret",
+            base_url="https://api.controld.test",
+            sleep=lambda _: None,
+        )
+        with patch("urllib.request.urlopen", opener):
+            result = sync_profile(
+                client,
+                "profile-1",
+                "Ads",
+                {"new.example": (0, 1)},
+                apply=True,
+                atomic=True,
+            )
+
+        self.assertEqual(result, (1, 1))
+        methods = [(method, path) for method, path, _ in requests]
+        delete_at = methods.index(("DELETE", "/profiles/profile-1/groups/group-1"))
+        create_at = methods.index(("POST", "/profiles/profile-1/groups"))
+        rules_at = methods.index(("POST", "/profiles/profile-1/rules"))
+        self.assertLess(delete_at, create_at)
+        self.assertLess(create_at, rules_at)
+        self.assertEqual(requests[rules_at][2]["hostnames"], ["new.example"])
+        self.assertEqual(requests[rules_at][2]["group"], "group-2")
 
 
 if __name__ == "__main__":

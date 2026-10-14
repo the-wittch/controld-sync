@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Atomic folder replace no longer tries to copy rules into a second group while
+  they still exist in the original. Control D custom rules are unique per
+  profile, so replace now snapshots in memory, deletes the folder, recreates it,
+  and restores from the snapshot on failure.
+- Multi-label Control D wildcards such as `*.edu.eu` and `*.co.com` are
+  preserved instead of being collapsed to the bare domain.
+- Mapped folders that share rule hostnames are rejected before any writes.
+
+### Changed
+
+- Baseline config maps `Spam TLDs` instead of also mapping
+  `Most Abused TLDs` (`spam-tlds-combined`), which fully contains `Spam TLDs`.
+
 ## [1.1.2] - 2026-09-20
 
 ### Fixed
