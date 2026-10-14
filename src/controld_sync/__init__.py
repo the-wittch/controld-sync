@@ -1,6 +1,6 @@
 """Synchronize JSON domain lists into Control D custom-rule folders."""
 
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 from .api import ControlDClient, list_profiles
 from .cache import content_hash, load_cache, save_cache

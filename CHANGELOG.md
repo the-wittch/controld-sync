@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## [1.1.3] - 2026-10-13
+
 ### Fixed
 
 - Atomic folder replace no longer tries to copy rules into a second group while
