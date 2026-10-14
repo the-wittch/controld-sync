@@ -265,10 +265,29 @@ def find_folder_overlaps(
             if not overlap:
                 continue
             sample = ", ".join(sorted(overlap)[:3])
-            messages.append(
-                f"{left!r} and {right!r} share {len(overlap)} rule(s) (e.g. {sample})"
-            )
+            messages.append(f"{left!r} and {right!r} share {len(overlap)} rule(s) (e.g. {sample})")
     return messages
+
+
+def select_non_overlapping_folders(
+    folder_rules: dict[str, dict[str, RuleAction]],
+) -> tuple[list[str], list[str]]:
+    """Pick a conflict-free subset, preferring smaller folders first.
+
+    Returns ``(selected, skipped)``. Skipped folders remain available in
+    ``[folders]`` but must not share a profile mapping with the selected set.
+    """
+    selected: list[str] = []
+    selected_keys: set[str] = set()
+    skipped: list[str] = []
+    for name in sorted(folder_rules, key=lambda item: (len(folder_rules[item]), item)):
+        keys = set(folder_rules[name])
+        if keys & selected_keys:
+            skipped.append(name)
+            continue
+        selected.append(name)
+        selected_keys |= keys
+    return sorted(selected), sorted(skipped)
 
 
 def resolve_profiles(client: ControlDClient, names: list[str]) -> dict[str, str]:
@@ -285,4 +304,9 @@ def resolve_profiles(client: ControlDClient, names: list[str]) -> dict[str, str]
     return resolved
 
 
-__all__ = ["find_folder_overlaps", "resolve_profiles", "sync_profile"]
+__all__ = [
+    "find_folder_overlaps",
+    "resolve_profiles",
+    "select_non_overlapping_folders",
+    "sync_profile",
+]

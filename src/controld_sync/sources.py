@@ -56,6 +56,7 @@ def _rule_key(value: Any) -> str | None:
         return "*." + rest
     return _domain(stripped.lower())
 
+
 def _walk_domains(value: Any) -> Iterable[str]:
     if isinstance(value, str):
         rule = _rule_key(value)

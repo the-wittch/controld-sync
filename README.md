@@ -117,11 +117,15 @@ controld-sync --generate-hagezi-config config.hagezi.toml
 
 The command discovers the current `*-folder.json` files from HaGeZi's GitHub
 repository, reads each folder's `group.group` name, and writes source URLs
-pinned to the resolved Git commit plus the `[profile_folders]` mapping. It does
-not require a Control D token. Use `--init-profile-name NAME` to choose a
-different profile name. Review the generated file before applying it; new
-HaGeZi folders may be added upstream over time, so regenerate it when you want
-to refresh the list.
+pinned to the resolved Git commit plus a conflict-free `[profile_folders]`
+mapping. Combined lists that share hostnames with smaller folders (for example
+`Most Abused TLDs` vs `Spam TLDs`) stay in `[folders]` but are omitted from the
+profile mapping and listed in a comment. It does not require a Control D token.
+Use `--init-profile-name NAME` to choose a different profile name. Review the
+generated file before applying it; new HaGeZi folders may be added upstream
+over time, so regenerate it when you want to refresh the list.
+`scripts/validate_config.py` (CI) re-downloads mapped sources and fails if any
+profile mapping shares rule hostnames.
 
 List the profiles available to the token:
 

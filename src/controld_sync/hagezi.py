@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from .errors import SyncError
+from .sources import parse_folder_rules
+from .sync import select_non_overlapping_folders
 
 GITHUB_CONTENTS_URL = "https://api.github.com/repos/hagezi/dns-blocklists/contents/controld"
 GITHUB_COMMIT_URL = "https://api.github.com/repos/hagezi/dns-blocklists/commits"
@@ -51,6 +53,7 @@ def generate_hagezi_config(
         raise SyncError("No HaGeZi Control D folder JSON files were found")
 
     folders: dict[str, str] = {}
+    folder_rules = {}
     for entry in sorted(entries, key=lambda item: str(item["name"])):
         name = str(entry["name"])
         data = _get_json(RAW_URL.format(ref=pinned_ref, name=name))
@@ -58,7 +61,11 @@ def generate_hagezi_config(
         folder_name = group.get("group") if isinstance(group, dict) else None
         if not isinstance(folder_name, str) or not folder_name.strip():
             raise SyncError(f"HaGeZi folder {name} has no valid group.group name")
-        folders[folder_name.strip()] = RAW_URL.format(ref=pinned_ref, name=name)
+        key = folder_name.strip()
+        folders[key] = RAW_URL.format(ref=pinned_ref, name=name)
+        folder_rules[key] = parse_folder_rules(data, key)
+
+    selected, skipped = select_non_overlapping_folders(folder_rules)
 
     quote = json.dumps
     lines = [
@@ -75,11 +82,16 @@ def generate_hagezi_config(
         "[folders]",
     ]
     lines.extend(f"{quote(name)} = {quote(source)}" for name, source in sorted(folders.items()))
+    lines.extend(["", "[profile_folders]"])
+    if skipped:
+        lines.append(
+            "# Folders omitted from the profile mapping because they share rule "
+            "hostnames with a selected folder (Control D rules are unique per profile):"
+        )
+        lines.extend(f"# - {name}" for name in skipped)
     lines.extend(
         [
-            "",
-            "[profile_folders]",
-            f"{quote(profile_name)} = [" + ", ".join(quote(name) for name in sorted(folders)) + "]",
+            f"{quote(profile_name)} = [" + ", ".join(quote(name) for name in selected) + "]",
             "",
         ]
     )

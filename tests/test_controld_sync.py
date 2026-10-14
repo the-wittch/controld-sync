@@ -1,3 +1,4 @@
+import importlib.util
 import io
 import json
 import tempfile
@@ -26,8 +27,22 @@ from controld_sync.sync import (
     _backup_name,
     find_folder_overlaps,
     resolve_profiles,
+    select_non_overlapping_folders,
     sync_profile,
 )
+
+
+def _load_validate_config():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "validate_config.py"
+    spec = importlib.util.spec_from_file_location("validate_config", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.validate
+
+
+validate = _load_validate_config()
 
 
 class LoadDomainsTests(unittest.TestCase):
@@ -249,10 +264,52 @@ class LoadDomainsTests(unittest.TestCase):
         self.assertIn("Spam TLDs", messages[0])
         self.assertIn("Most Abused TLDs", messages[0])
 
+    def test_select_non_overlapping_folders_prefers_smaller(self):
+        selected, skipped = select_non_overlapping_folders(
+            {
+                "Spam TLDs": {"*.ACTOR": (0, 1), "*.BIZ": (0, 1)},
+                "Most Abused TLDs": {
+                    "*.ACTOR": (0, 1),
+                    "*.BIZ": (0, 1),
+                    "*.ZIP": (0, 1),
+                },
+                "Referral": {"ref.example": (1, 1)},
+            }
+        )
+        self.assertEqual(selected, ["Referral", "Spam TLDs"])
+        self.assertEqual(skipped, ["Most Abused TLDs"])
+
+    def test_validate_config_rejects_overlapping_mapped_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.json").write_text(
+                json.dumps(
+                    {
+                        "group": {"group": "A"},
+                        "rules": [{"PK": "shared.example", "action": {"do": 0, "status": 1}}],
+                    }
+                )
+            )
+            (root / "b.json").write_text(
+                json.dumps(
+                    {
+                        "group": {"group": "B"},
+                        "rules": [{"PK": "shared.example", "action": {"do": 0, "status": 1}}],
+                    }
+                )
+            )
+            config = root / "config.toml"
+            config.write_text(
+                '[settings]\napi_token = ""\n'
+                '[profiles]\nnames = ["Kids"]\n'
+                '[folders]\n"A" = "a.json"\n"B" = "b.json"\n'
+                '[profile_folders]\nKids = ["A", "B"]\n'
+            )
+            problems = validate(config)
+            self.assertTrue(any("share" in item for item in problems))
+
     def test_atomic_replace_deletes_before_recreating(self):
-        rules = {
-            "body": {"rules": [{"PK": "old.example", "action": {"do": 0, "status": 1}}]}
-        }
+        rules = {"body": {"rules": [{"PK": "old.example", "action": {"do": 0, "status": 1}}]}}
         state = {"groups": [{"name": "Ads", "PK": "group-1"}], "rules": dict(rules)}
         requests = []
 
@@ -280,18 +337,13 @@ class LoadDomainsTests(unittest.TestCase):
                 return Response(state["rules"])
             if method == "GET" and path == "/profiles/profile-1/rules/group-2":
                 return Response(
-                    {
-                        "body": {
-                            "rules": [
-                                {"PK": "new.example", "action": {"do": 0, "status": 1}}
-                            ]
-                        }
-                    }
+                    {"body": {"rules": [{"PK": "new.example", "action": {"do": 0, "status": 1}}]}}
                 )
             if method == "DELETE" and path == "/profiles/profile-1/groups/group-1":
                 state["groups"] = []
                 return Response({})
             if method == "POST" and path == "/profiles/profile-1/groups":
+                assert isinstance(body, dict)
                 state["groups"] = [{"name": body["name"], "PK": "group-2"}]
                 return Response({"body": {"groups": [{"PK": "group-2"}]}})
             if method == "POST" and path == "/profiles/profile-1/rules":

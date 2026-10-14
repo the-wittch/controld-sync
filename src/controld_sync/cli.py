@@ -133,9 +133,7 @@ def main() -> int:
                 )
                 continue
             mapped_rules = {
-                str(name): folders[str(name)]
-                for name in selected
-                if str(name) in folders
+                str(name): folders[str(name)] for name in selected if str(name) in folders
             }
             overlaps = find_folder_overlaps(mapped_rules)
             for message in overlaps:

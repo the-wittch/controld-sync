@@ -18,6 +18,10 @@ All notable changes to this project are documented here.
 
 - Baseline config maps `Spam TLDs` instead of also mapping
   `Most Abused TLDs` (`spam-tlds-combined`), which fully contains `Spam TLDs`.
+- `scripts/validate_config.py` downloads mapped sources and fails on overlapping
+  rule hostnames, so CI catches conflicts before the weekly sync.
+- `--generate-hagezi-config` keeps overlapping folders in `[folders]` but only
+  maps a conflict-free subset to the init profile.
 
 ## [1.1.2] - 2026-09-20
 

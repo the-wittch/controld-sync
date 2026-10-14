@@ -22,6 +22,8 @@ names = ["Kids", "Adults"]
 "Most Abused TLDs" = "https://raw.githubusercontent.com/hagezi/dns-blocklists/c30a9937e79f18bb31dcf4d45ac4988c3ddc8e7a/controld/spam-tlds-combined-folder.json"
 "Potentially Malicious IPs" = "https://raw.githubusercontent.com/yokoffing/Control-D-Config/0b9b90d4eeada5d9ca60c532e7ee6dcf8f9a967c/folders/potentially-malicious-ips.json"
 
+# Folders mapped to the same profile must not share rule hostnames.
+# CI (`scripts/validate_config.py`) downloads sources and rejects overlaps.
 [profile_folders]
 Kids = ["Badware Hoster", "Most Abused TLDs", "Potentially Malicious IPs"]
 Adults = ["Badware Hoster", "Potentially Malicious IPs"]

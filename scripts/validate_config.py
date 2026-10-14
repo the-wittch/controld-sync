@@ -12,6 +12,18 @@ from urllib.parse import urlparse
 SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
+def _load_helpers():
+    try:
+        from controld_sync.sources import load_folder_source
+        from controld_sync.sync import find_folder_overlaps
+    except ImportError:
+        root = Path(__file__).resolve().parents[1]
+        sys.path.insert(0, str(root / "src"))
+        from controld_sync.sources import load_folder_source
+        from controld_sync.sync import find_folder_overlaps
+    return load_folder_source, find_folder_overlaps
+
+
 def validate(path: Path) -> list[str]:
     errors: list[str] = []
     try:
@@ -54,6 +66,35 @@ def validate(path: Path) -> list[str]:
                     for folder in selected
                     if folder not in folders
                 )
+    if errors:
+        return errors
+
+    load_folder_source, find_folder_overlaps = _load_helpers()
+    config_dir = path.resolve().parent
+    if not isinstance(folders, dict) or not isinstance(mappings, dict):
+        return errors
+    for profile in names if isinstance(names, list) else []:
+        selected = mappings.get(profile)
+        if not isinstance(selected, list):
+            continue
+        loaded = {}
+        for folder in selected:
+            source = folders[folder]
+            resolved = (
+                source
+                if str(source).startswith(("http://", "https://"))
+                else str((config_dir / str(source)).resolve())
+            )
+            try:
+                loaded[str(folder)] = load_folder_source(resolved, str(folder))
+            except (OSError, ValueError, TypeError, RuntimeError) as exc:
+                errors.append(
+                    f"profile {profile!r} folder {folder!r}: could not load source: {exc}"
+                )
+        for message in find_folder_overlaps(loaded):
+            errors.append(
+                f"profile {profile!r}: {message} (Control D custom rules are unique per profile)"
+            )
     return errors
 
 
