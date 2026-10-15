@@ -22,6 +22,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Never fail this job: a red "merge" check blocks GitHub auto-merge /
+          # branch rules. Soft-refuse instead.
+          refuse() { echo "$1"; exit 0; }
+
           head_sha="$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)"
           # Wait for CI on this head (Dependabot PRs often open before checks finish).
           ci_ok=false
@@ -36,42 +40,44 @@ jobs:
                 break
               fi
               if printf '%s\n' "${runs[@]}" | grep -E 'completed=(failure|cancelled|timed_out)' >/dev/null; then
-                echo "CI failed for this head; refusing auto-merge."
-                exit 0
+                refuse "CI failed for this head; refusing auto-merge."
               fi
             fi
             sleep 30
           done
           if [ "$ci_ok" != true ]; then
-            echo "CI did not succeed in time; refusing auto-merge."
-            exit 0
+            refuse "CI did not succeed in time; refusing auto-merge."
           fi
 
           files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')"
           test -n "$files"
           if printf '%s\n' "$files" | grep -Evq '^\.github/workflows/[^/]+\.ya?ml$'; then
-            echo "Not an Actions-only update; refusing auto-merge."
-            exit 0
+            refuse "Not an Actions-only update; refusing auto-merge."
           fi
           diff="$(gh pr diff "$PR" --repo "$REPO")"
           if printf '%s' "$diff" | grep -Eq '(^|[+-])(permissions:|[[:space:]]+(contents|pull-requests|security-events):[[:space:]]*(write|none))|(^|[+-]).*(config\.toml|controld_sync/|scripts/)'; then
-            echo "Permission or source/config change detected; refusing auto-merge."
-            exit 0
+            refuse "Permission or source/config change detected; refusing auto-merge."
           fi
           title="$(gh pr view "$PR" --repo "$REPO" --json title --jq .title)"
           if ! printf '%s' "$title" | grep -Eiq 'bump .* from v?[0-9]+\.[0-9]+(\.[0-9]+)? to v?[0-9]+\.[0-9]+(\.[0-9]+)?'; then
-            echo "Could not prove this is a patch/minor version update."
-            exit 0
+            refuse "Could not prove this is a patch/minor version update."
           fi
           if printf '%s' "$title" | grep -Eq 'from v?([0-9]+)\.([0-9]+).* to v?([0-9]+)\.([0-9]+)'; then
             read -r old_major old_minor new_major new_minor < <(
               printf '%s' "$title" | sed -E 's/.*from v?([0-9]+)\.([0-9]+).* to v?([0-9]+)\.([0-9]+).*/\1 \2 \3 \4/'
             )
             if [ "$old_major" != "$new_major" ] || [ "$new_minor" -lt "$old_minor" ]; then
-              echo "Major or downgrade update; refusing auto-merge."
-              exit 0
+              refuse "Major or downgrade update; refusing auto-merge."
             fi
           fi
-          # Squash-merge directly once CI passed. --auto requires branch-required
-          # checks that this repo does not expose to `gh pr checks --required`.
-          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
+
+          # Queue squash-merge once rules (e.g. required "test") are satisfied.
+          if ! out="$(gh pr merge "$PR" --repo "$REPO" --squash --auto --delete-branch 2>&1)"; then
+            echo "$out"
+            if printf '%s' "$out" | grep -Eiq 'already (merged|enabled)|not mergeable|base branch policy'; then
+              refuse "Merge queued or blocked by policy; leaving for GitHub auto-merge/retry."
+            fi
+            refuse "gh pr merge failed; not failing the check so it cannot block the PR."
+          fi
+          echo "$out"
+          echo "Auto-merge enabled for #$PR."

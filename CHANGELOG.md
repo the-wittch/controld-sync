@@ -6,9 +6,9 @@ All notable changes to this project are documented here.
 
 ### Fixed
 
-- Dependabot auto-merge waits for CI instead of requiring branch-protection
-  status checks, so safe Actions patch/minor PRs can merge without manual
-  intervention.
+- Dependabot auto-merge waits for CI, enables GitHub auto-merge without failing
+  its own check (a red `merge` check was blocking PRs), and groups Actions
+  updates so CodeQL `init`/`analyze` stay on the same version.
 
 ## [1.1.3] - 2026-10-13
 
