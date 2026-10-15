@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Dependabot auto-merge waits for CI instead of requiring branch-protection
+  status checks, so safe Actions patch/minor PRs can merge without manual
+  intervention.
+
 ## [1.1.3] - 2026-10-13
 
 ### Fixed

@@ -259,9 +259,10 @@ reviewable pull requests when updates are available. It runs weekly and does
 not update the pinned HaGeZi source commits; regenerate `config.toml` manually
 when you intentionally want to update those sources.
 
-The restricted auto-merge workflow only considers Dependabot GitHub Actions
-patch/minor updates after required checks pass. It refuses config/source or
-workflow permission changes. Review major updates manually.
+The restricted auto-merge workflow waits for CI to pass, then squash-merges
+Dependabot GitHub Actions patch/minor updates that only touch workflow YAML
+and do not change permissions. It refuses config/source or workflow permission
+changes. Review major updates manually.
 
 ## Security and maintenance
 

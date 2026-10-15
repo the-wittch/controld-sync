@@ -21,14 +21,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh pr checks "$PR" --repo "$REPO" --required
+
           head_sha="$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)"
-          if ! gh run list --repo "$REPO" --workflow ci.yml --commit "$head_sha" \
-            --json status,conclusion --jq 'any(.[]; .status == "completed" and .conclusion == "success")' |
-            grep -qx true; then
-            echo "CI has not passed for this head; refusing auto-merge."
+          # Wait for CI on this head (Dependabot PRs often open before checks finish).
+          ci_ok=false
+          for _ in $(seq 1 40); do
+            mapfile -t runs < <(
+              gh run list --repo "$REPO" --workflow ci.yml --commit "$head_sha" \
+                --json status,conclusion --jq '.[] | "\(.status)=\(.conclusion // "")"'
+            )
+            if [ "${#runs[@]}" -gt 0 ]; then
+              if printf '%s\n' "${runs[@]}" | grep -qx 'completed=success'; then
+                ci_ok=true
+                break
+              fi
+              if printf '%s\n' "${runs[@]}" | grep -E 'completed=(failure|cancelled|timed_out)' >/dev/null; then
+                echo "CI failed for this head; refusing auto-merge."
+                exit 0
+              fi
+            fi
+            sleep 30
+          done
+          if [ "$ci_ok" != true ]; then
+            echo "CI did not succeed in time; refusing auto-merge."
             exit 0
           fi
+
           files="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')"
           test -n "$files"
           if printf '%s\n' "$files" | grep -Evq '^\.github/workflows/[^/]+\.ya?ml$'; then
@@ -54,4 +72,6 @@ jobs:
               exit 0
             fi
           fi
-          gh pr merge "$PR" --repo "$REPO" --auto --squash
+          # Squash-merge directly once CI passed. --auto requires branch-required
+          # checks that this repo does not expose to `gh pr checks --required`.
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
