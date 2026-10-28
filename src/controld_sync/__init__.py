@@ -1,4 +1,4 @@
-__version__ = "1.1.3"
+__version__ = "1.2.0"
 
 from .api import ControlDClient, list_profiles
 from .cache import content_hash, load_cache, save_cache
