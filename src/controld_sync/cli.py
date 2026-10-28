@@ -1,5 +1,3 @@
-"""Command-line orchestration for Control D synchronization."""
-
 from __future__ import annotations
 
 import argparse
@@ -20,7 +18,9 @@ from .sync import find_folder_overlaps, resolve_profiles, sync_profile
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description="Sync JSON domain lists into Control D custom-rule folders."
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--config", type=Path, default=Path("config.toml"))
     parser.add_argument("--apply", action="store_true", help="Override config and perform writes")
@@ -103,6 +103,11 @@ def main() -> int:
         checked_at = datetime.now(UTC).isoformat()
         folders = {}
         failures = []
+
+        def fail(profile: str, folder: str, error: str) -> None:
+            failures.append({"profile": profile, "folder": folder, "error": error})
+            print(f"error: [{profile}] {folder}: {error}", file=sys.stderr)
+
         for name, source in folder_sources.items():
             try:
                 folders[str(name)] = load_folder_source(
@@ -112,8 +117,7 @@ def main() -> int:
                     str(name),
                 )
             except (SyncError, OSError, ValueError, TypeError) as exc:
-                failures.append({"profile": "(source)", "folder": str(name), "error": str(exc)})
-                print(f"error: source {name!r}: {exc}", file=sys.stderr)
+                fail("(source)", str(name), str(exc))
         profile_ids = resolve_profiles(client, [str(name) for name in profile_names])
         apply = args.apply or (not args.dry_run and not bool(settings.get("dry_run", True)))
         atomic, fail_on_drift = (
@@ -124,43 +128,19 @@ def main() -> int:
         for profile_name, profile_id in profile_ids.items():
             selected = mappings.get(profile_name)
             if not isinstance(selected, list):
-                failures.append(
-                    {
-                        "profile": profile_name,
-                        "folder": "(mapping)",
-                        "error": f"[profile_folders] missing mapping for {profile_name!r}",
-                    }
-                )
+                fail(profile_name, "(mapping)", "no entry in [profile_folders]")
                 continue
             mapped_rules = {
                 str(name): folders[str(name)] for name in selected if str(name) in folders
             }
             overlaps = find_folder_overlaps(mapped_rules)
             for message in overlaps:
-                failures.append(
-                    {
-                        "profile": profile_name,
-                        "folder": "(overlap)",
-                        "error": message,
-                    }
-                )
-                print(f"error: [{profile_name}] {message}", file=sys.stderr)
+                fail(profile_name, "(overlap)", message)
             if overlaps:
-                # Skip writes for this profile; overlapping sources would hit
-                # Control D's per-profile unique custom-rule constraint.
                 continue
             for folder_name in selected:
                 if str(folder_name) not in folders:
-                    failures.append(
-                        {
-                            "profile": profile_name,
-                            "folder": str(folder_name),
-                            "error": f"unknown folder {folder_name!r}",
-                        }
-                    )
-                    print(
-                        f"error: [{profile_name}] unknown folder {folder_name!r}", file=sys.stderr
-                    )
+                    fail(profile_name, str(folder_name), "unknown or failed source")
                     continue
                 desired = folders[str(folder_name)]
                 digest = content_hash(desired)
@@ -174,9 +154,6 @@ def main() -> int:
                     print(f"[{profile_name}] {folder_name!r} source changed since last apply")
                 try:
                     if args.check_updates:
-                        # This mode is deliberately source-only: loading the URL/file
-                        # above is the freshness check, and the cached digest is the
-                        # last successfully applied source version.
                         additions, removals = 0, 0
                     else:
                         additions, removals = sync_profile(
@@ -190,25 +167,10 @@ def main() -> int:
                         )
                 except SyncError as exc:
                     cache.pop(cache_key, None)
-                    if not args.no_cache and not args.check_updates and not args.validate:
-                        save_cache(cache_path, cache)
-                    failures.append(
-                        {"profile": profile_name, "folder": str(folder_name), "error": str(exc)}
-                    )
-                    print(f"error: [{profile_name}] {folder_name!r}: {exc}", file=sys.stderr)
+                    fail(profile_name, str(folder_name), str(exc))
                     continue
                 if fail_on_drift and (additions or removals):
-                    failures.append(
-                        {
-                            "profile": profile_name,
-                            "folder": str(folder_name),
-                            "error": "drift detected",
-                        }
-                    )
-                    print(
-                        f"error: [{profile_name}] drift detected in {folder_name!r}",
-                        file=sys.stderr,
-                    )
+                    fail(profile_name, str(folder_name), "drift detected")
                     continue
                 summaries.append(
                     {

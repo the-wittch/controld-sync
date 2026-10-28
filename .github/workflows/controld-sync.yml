@@ -2,7 +2,6 @@ name: Sync Control D folders
 
 on:
   schedule:
-    # Every Sunday at 03:00 UTC.
     - cron: "0 3 * * 0"
   workflow_dispatch:
 
@@ -17,11 +16,11 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    env:
-      CONTROLD_API_TOKEN: ${{ secrets.CONTROLD_API_TOKEN }}
     steps:
       - name: Check out source lists
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v5.6.0
@@ -33,6 +32,8 @@ jobs:
 
       - name: Run Control D sync
         shell: bash
+        env:
+          CONTROLD_API_TOKEN: ${{ secrets.CONTROLD_API_TOKEN }}
         run: |
           set -euo pipefail
           test -n "$CONTROLD_API_TOKEN" || {
@@ -72,7 +73,11 @@ jobs:
         run: |
           set -euo pipefail
           title="Scheduled Control D sync failed"
-          body="The scheduled sync failed in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID.
-
-          Review the workflow logs and summary before rerunning. This issue was created automatically."
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          open="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')"
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body "Failed again: $run_url"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" \
+              --body "The scheduled sync failed in run $run_url. Review the logs and summary before rerunning."
+          fi

@@ -35,6 +35,4 @@ names = ["Baseline Profile"]
 "Potentially Malicious IPs" = "https://raw.githubusercontent.com/yokoffing/Control-D-Config/0b9b90d4eeada5d9ca60c532e7ee6dcf8f9a967c/folders/potentially-malicious-ips.json"
 
 [profile_folders]
-# Most Abused TLDs (spam-tlds-combined) fully contains Spam TLDs; Control D
-# custom rules are unique per profile, so only one of those folders can be mapped.
 "Baseline Profile" = ["Badware Hoster", "Known Issues allow", "Microsoft Tracker", "Potentially Malicious IPs", "Referral", "Samsung Tracker", "Spam IDNs", "Spam TLDs", "Spam TLDs allow", "Tiktok Tracker"]

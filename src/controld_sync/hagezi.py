@@ -1,15 +1,12 @@
-"""HaGeZi Control D folder discovery and configuration generation."""
-
 from __future__ import annotations
 
 import json
 import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 from .errors import SyncError
-from .sources import parse_folder_rules
+from .sources import fetch_json, parse_folder_rules
 from .sync import select_non_overlapping_folders
 
 GITHUB_CONTENTS_URL = "https://api.github.com/repos/hagezi/dns-blocklists/contents/controld"
@@ -18,14 +15,7 @@ RAW_URL = "https://raw.githubusercontent.com/hagezi/dns-blocklists/{ref}/control
 
 
 def _get_json(url: str) -> Any:
-    request = urllib.request.Request(
-        url, headers={"Accept": "application/vnd.github+json", "User-Agent": "controld-sync"}
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return json.loads(response.read())
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SyncError(f"Could not read HaGeZi folder metadata from {url}: {exc}") from exc
+    return fetch_json(url, {"Accept": "application/vnd.github+json"})
 
 
 def generate_hagezi_config(
@@ -33,7 +23,6 @@ def generate_hagezi_config(
     profile_name: str = "Init",
     ref: str = "main",
 ) -> int:
-    """Discover HaGeZi Control D folders and write a token-free TOML config."""
     commit = _get_json(f"{GITHUB_COMMIT_URL}/{urllib.parse.quote(ref, safe='')}")
     pinned_ref = commit.get("sha") if isinstance(commit, dict) else None
     if not isinstance(pinned_ref, str) or not pinned_ref:

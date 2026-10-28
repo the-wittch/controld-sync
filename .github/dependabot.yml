@@ -4,7 +4,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Keep CodeQL init/analyze on the same version; split bumps fail analysis.
+    # codeql init and analyze must move together
     groups:
       github-actions:
         patterns:
