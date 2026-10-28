@@ -94,8 +94,9 @@ modify Control D groups) and never advances or writes the cache. Successful
 runs also print structured JSON folder summaries suitable for GitHub Actions.
 
 The token is sent only as an HTTPS `Authorization: Bearer` header to the
-configured Control D API base URL. JSON source URLs are fetched without the
-Control D token. Do not put a real token in `config.toml`, because repository
+configured Control D API base URL, and API redirects are refused so the token
+can't follow one to another host. JSON source URLs are fetched without the
+Control D token, must use HTTPS, and are capped at 16 MiB. Do not put a real token in `config.toml`, because repository
 files, pull requests, and checkout artifacts are not secret storage. Use the
 `CONTROLD_API_TOKEN` GitHub secret instead.
 
@@ -206,22 +207,26 @@ or a combination:
 ```
 
 The script batches additions in groups of 500 and normalizes case, trailing
-dots, and `||example^` entries. Control D wildcard PKs such as `*.ACTOR` and
+dots, and `||example^` entries. A `www.` prefix is kept, since Control D rules
+also match subdomains and stripping it would widen the rule. Control D wildcard PKs such as `*.ACTOR` and
 `*.edu.eu` are preserved; bare domains are lowercased.
 
-## HaGeZi example
+## Local files
 
-Download one or more JSON folders into a directory and sync them:
+A `[folders]` source can also be a local JSON file or a directory of JSON files,
+relative to the config file:
 
 ```sh
 mkdir -p lists
 curl -fsSL 'https://raw.githubusercontent.com/hagezi/dns-blocklists/main/controld/badware-hoster-folder.json' \
-  -o lists/hagezi.json
-CONTROLD_API_TOKEN='your-token' \
-  controld-sync lists --profile PROFILE_ID --apply
+  -o lists/badware-hoster.json
 ```
 
-The folder name comes from `group.group`; if absent, the filename stem is used.
+```toml
+[folders]
+"Badware Hoster" = "lists"
+```
+
 Check the source format before using it; plain hosts or Adblock files should be
 converted to JSON first.
 
@@ -259,10 +264,10 @@ reviewable pull requests when updates are available. It runs weekly and does
 not update the pinned HaGeZi source commits; regenerate `config.toml` manually
 when you intentionally want to update those sources.
 
-The restricted auto-merge workflow waits for CI to pass, then squash-merges
-Dependabot GitHub Actions patch/minor updates that only touch workflow YAML
-and do not change permissions. It refuses config/source or workflow permission
-changes. Review major updates manually.
+The restricted auto-merge workflow reads the update type from
+`dependabot/fetch-metadata` (which also covers grouped updates), waits for CI to
+pass, then squash-merges GitHub Actions patch/minor updates whose diff only
+changes `uses:` lines in workflow files. Review major updates manually.
 
 ## Security and maintenance
 
@@ -272,15 +277,15 @@ GitHub commit URLs, and rejects committed API tokens. Run it locally with
 `python3 scripts/validate_config.py config.toml`.
 
 The scheduled HaGeZi checker compares `config.toml` pins with the upstream
-`main` commit. When safe, it changes only those pins on an automation branch
-and opens a reviewable PR; it never changes production configuration directly.
-If GitHub cannot create or push a PR (for example, repository policy disables
-write permissions for `GITHUB_TOKEN`), it reports the update in the workflow
-log and no config is deployed. The sync workflow still requires the separate
-`CONTROLD_API_TOKEN` secret.
+`main` commit. When safe, it changes only those pins on an automation branch,
+opens a reviewable PR, and starts CI on it (PRs opened by `GITHUB_TOKEN` don't
+trigger CI on their own); it never changes production configuration directly.
+It needs **Settings → Actions → General → Allow GitHub Actions to create and
+approve pull requests** enabled, and fails the run if it can't open the PR.
 
-Scheduled sync failures create a GitHub issue with a link to the failed run.
-The workflow needs repository `issues: write` permission for this notification.
+Scheduled sync failures open a GitHub issue with a link to the failed run, or
+comment on the existing open one. The workflow needs repository
+`issues: write` permission for this notification.
 Tag pushes matching `v*.*.*` run validation and create a GitHub Release with
 generated notes through [`release.yml`](.github/workflows/release.yml).
 
@@ -301,7 +306,7 @@ generated notes through [`release.yml`](.github/workflows/release.yml).
 Before opening a pull request, run:
 
 ```sh
-python3 -m unittest -v
+python3 -m unittest discover -s tests -v
 python3 -m py_compile src/controld_sync/*.py scripts/*.py
 python3 scripts/validate_config.py config.toml
 ```

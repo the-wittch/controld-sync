@@ -2,9 +2,11 @@ import importlib.util
 import io
 import json
 import tempfile
+import threading
 import unittest
 import urllib.error
 from email.message import Message
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,6 +20,7 @@ from controld_sync import (
     load_cache,
     load_config,
     load_domains,
+    load_folder_source,
     load_folders,
     save_cache,
 )
@@ -172,11 +175,11 @@ class LoadDomainsTests(unittest.TestCase):
             return Response()
 
         client = ControlDClient("secret", base_url="https://api.controld.com", sleep=lambda _: None)
-        with patch("urllib.request.urlopen", opener):
+        with patch("controld_sync.api._open", opener):
             client.request("/profiles")
         self.assertEqual(calls, ["GET", "GET"])
         calls.clear()
-        with patch("urllib.request.urlopen", opener):
+        with patch("controld_sync.api._open", opener):
             with self.assertRaises(SyncError):
                 client.request("/groups", "POST", {})
         self.assertEqual(calls, ["POST"])
@@ -224,7 +227,7 @@ class LoadDomainsTests(unittest.TestCase):
             base_url="https://api.controld.test",
             sleep=lambda _: None,
         )
-        with patch("urllib.request.urlopen", opener):
+        with patch("controld_sync.api._open", opener):
             profiles = resolve_profiles(client, ["Kids"])
             result = sync_profile(
                 client,
@@ -355,7 +358,7 @@ class LoadDomainsTests(unittest.TestCase):
             base_url="https://api.controld.test",
             sleep=lambda _: None,
         )
-        with patch("urllib.request.urlopen", opener):
+        with patch("controld_sync.api._open", opener):
             result = sync_profile(
                 client,
                 "profile-1",
@@ -374,6 +377,90 @@ class LoadDomainsTests(unittest.TestCase):
         self.assertLess(create_at, rules_at)
         self.assertEqual(requests[rules_at][2]["hostnames"], ["new.example"])
         self.assertEqual(requests[rules_at][2]["group"], "group-2")
+
+    def test_www_prefix_is_kept(self):
+        self.assertEqual(_rule_key("www.example.com"), "www.example.com")
+
+    def test_sources_must_use_https(self):
+        with self.assertRaises(SyncError):
+            load_folder_source("http://example.com/list.json", "List")
+
+    def test_oversized_source_is_rejected(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def geturl(self):
+                return "https://example.com/list.json"
+
+            def read(self, size):
+                return b"x" * size
+
+        with patch("urllib.request.urlopen", lambda request, timeout: Response()):
+            with self.assertRaisesRegex(SyncError, "larger than"):
+                load_folder_source("https://example.com/list.json", "List")
+
+    def test_api_does_not_follow_redirects(self):
+        class Redirect(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", "http://127.0.0.1:1/steal")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Redirect)
+        thread = threading.Thread(target=server.handle_request, daemon=True)
+        thread.start()
+        try:
+            client = ControlDClient(
+                "secret", base_url=f"http://127.0.0.1:{server.server_port}", max_retries=0
+            )
+            with self.assertRaisesRegex(SyncError, r"\(302\)"):
+                client.request("/profiles")
+        finally:
+            thread.join(5)
+            server.server_close()
+
+    def test_failed_restore_is_reported(self):
+        state = {"deleted": False}
+
+        class Response:
+            def __init__(self, payload):
+                self.payload = json.dumps(payload).encode()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return self.payload
+
+        def opener(request, timeout):
+            path = request.full_url.removeprefix("https://api.controld.test")
+            method = request.method
+            if method == "GET" and path == "/profiles/profile-1/groups":
+                groups = [] if state["deleted"] else [{"name": "Ads", "PK": "group-1"}]
+                return Response({"body": {"groups": groups}})
+            if method == "GET" and path == "/profiles/profile-1/rules/group-1":
+                return Response({"body": {"rules": [{"PK": "old.example"}]}})
+            if method == "DELETE" and path == "/profiles/profile-1/groups/group-1":
+                state["deleted"] = True
+                return Response({})
+            raise urllib.error.HTTPError(request.full_url, 500, "down", Message(), None)
+
+        client = ControlDClient("secret", base_url="https://api.controld.test", max_retries=0)
+        with patch("controld_sync.api._open", opener):
+            with self.assertRaisesRegex(SyncError, "restoring the previous 1 rules also failed"):
+                sync_profile(
+                    client, "profile-1", "Ads", {"new.example": (0, 1)}, apply=True, atomic=True
+                )
 
 
 if __name__ == "__main__":

@@ -1,9 +1,6 @@
-"""Profile and folder synchronization, including atomic replacement."""
-
 from __future__ import annotations
 
 import hashlib
-import time
 import urllib.parse
 from typing import Any
 
@@ -114,12 +111,12 @@ def _read_group_rules(client: ControlDClient, prefix: str, folder_id: str) -> di
         if previous is not None and current == previous:
             return current
         previous = current
-        time.sleep(0.05)
+        client.sleep(0.05)
     raise SyncError(f"rules for group {folder_id!r} did not settle")
 
 
 def _backup_name(folder_name: str, suffix: str) -> str:
-    """Keep API names within Control D's 32-character limit."""
+    # Control D caps group names at 32 characters
     candidate = f"{folder_name}_{suffix}"
     if len(candidate) <= 32:
         return candidate
@@ -185,7 +182,6 @@ def _create_group_with_rules(
 
 
 def _cleanup_stale_backups(client: ControlDClient, prefix: str, folder_name: str) -> None:
-    """Remove leftover atomic-replace backup groups from interrupted runs."""
     groups = _items(client.request(prefix + "/groups"))
     for suffix in ("OLD", "NEW"):
         _delete_named_group(client, prefix, groups, _backup_name(folder_name, suffix))
@@ -202,16 +198,10 @@ def _replace_group(
     additions: int,
     removals: int,
 ) -> tuple[int, int]:
-    """Replace a folder by deleting it, then recreating from an in-memory snapshot.
-
-    Control D custom rules are unique per profile, so rules cannot be copied into a
-    backup group while they still exist in the original. Snapshot the previous set,
-    delete the folder (which frees the hostnames), write the desired set, and on
-    failure attempt to restore the snapshotted original.
-    """
+    # rules are unique per profile, so there's no copying them into a backup group first;
+    # the old set lives in memory and is written back if anything after the delete fails
     deleted = False
     try:
-        _cleanup_stale_backups(client, prefix, folder_name)
         client.request(prefix + "/groups/" + urllib.parse.quote(folder_id, safe=""), "DELETE")
         deleted = True
         final_id = _create_group_with_rules(client, prefix, folder_name, desired, profile_id)
@@ -233,8 +223,12 @@ def _replace_group(
                             "DELETE",
                         )
                 _create_group_with_rules(client, prefix, folder_name, original, profile_id)
-            except SyncError:
-                pass
+            except (SyncError, OSError, ValueError, TypeError) as restore_exc:
+                raise SyncError(
+                    f"[{profile_id}] replacing {folder_name!r} failed ({exc}) and restoring "
+                    f"the previous {len(original)} rules also failed ({restore_exc}); "
+                    "the folder may be missing or incomplete in Control D"
+                ) from exc
         if isinstance(exc, SyncError):
             raise
         raise SyncError(f"[{profile_id}] atomic replacement failed: {exc}") from exc
@@ -248,14 +242,12 @@ def _group_by_action(rules: dict[str, RuleAction]) -> list[tuple[RuleAction, lis
 
 
 def _folder_action(rules: dict[str, RuleAction]) -> RuleAction:
-    """Use the first normalized rule action as the Control D group action."""
     return rules[sorted(rules)[0]] if rules else DEFAULT_ACTION
 
 
 def find_folder_overlaps(
     folder_rules: dict[str, dict[str, RuleAction]],
 ) -> list[str]:
-    """Return human-readable messages for rule keys shared across folders."""
     names = sorted(folder_rules)
     messages: list[str] = []
     for index, left in enumerate(names):
@@ -272,11 +264,6 @@ def find_folder_overlaps(
 def select_non_overlapping_folders(
     folder_rules: dict[str, dict[str, RuleAction]],
 ) -> tuple[list[str], list[str]]:
-    """Pick a conflict-free subset, preferring smaller folders first.
-
-    Returns ``(selected, skipped)``. Skipped folders remain available in
-    ``[folders]`` but must not share a profile mapping with the selected set.
-    """
     selected: list[str] = []
     selected_keys: set[str] = set()
     skipped: list[str] = []

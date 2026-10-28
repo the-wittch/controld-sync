@@ -9,6 +9,30 @@ All notable changes to this project are documented here.
 - Dependabot auto-merge waits for CI, enables GitHub auto-merge without failing
   its own check (a red `merge` check was blocking PRs), and groups Actions
   updates so CodeQL `init`/`analyze` stay on the same version.
+- Dependabot auto-merge reads the update type from `dependabot/fetch-metadata`
+  instead of the PR title, so grouped updates are no longer always refused.
+- `www.` prefixes are no longer stripped. `www.googletagmanager.com` in an allow
+  folder was being uploaded as `googletagmanager.com`, allowing the whole domain.
+  The first apply after upgrading replaces the affected folders.
+- The HaGeZi pin updater fails instead of passing with a warning when it can't
+  open its PR, and starts CI on the PR it opens.
+- A failed restore after an atomic replace is reported instead of swallowed.
+- Dry runs no longer write the cache when a folder fails.
+- Scheduled sync failures comment on the open failure issue instead of opening
+  a new one each time.
+
+### Security
+
+- Source URLs must use HTTPS and are capped at 16 MiB.
+- The Control D client refuses redirects so the bearer token can't be forwarded.
+- `CONTROLD_API_TOKEN` is only exposed to the sync step, not to `pip install`.
+- Workflow checkouts no longer persist the `GITHUB_TOKEN` where it isn't needed.
+
+### Changed
+
+- CI and CodeQL run on pushes to `main` and on pull requests instead of every
+  branch push. Config validation runs once per CI run; the separate
+  `config-validation.yml` workflow was removed.
 
 ## [1.1.3] - 2026-10-13
 

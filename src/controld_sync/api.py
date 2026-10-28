@@ -1,5 +1,3 @@
-"""Control D HTTP client and response-shape helpers."""
-
 from __future__ import annotations
 
 import json
@@ -15,8 +13,33 @@ from .config import API_BASE
 from .errors import SyncError
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+# a redirect would carry the bearer token to wherever it points
+_open = urllib.request.build_opener(_NoRedirect).open
+
+
 def _safe_error(text: str, token: str) -> str:
     return text.replace(token, "[REDACTED]") if token else text
+
+
+def _retry_delay(retry_after: str | None, fallback: float) -> float:
+    if not retry_after:
+        return fallback
+    try:
+        return max(0.0, float(retry_after))
+    except ValueError:
+        pass
+    try:
+        target = parsedate_to_datetime(retry_after)
+    except (TypeError, ValueError):
+        return fallback
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=UTC)
+    return max(0.0, (target - datetime.now(UTC)).total_seconds())
 
 
 def _items(value: Any) -> list[dict[str, Any]]:
@@ -54,6 +77,7 @@ class ControlDClient:
     sleep: Any = time.sleep
 
     def request(self, path: str, method: str = "GET", body: Any = None) -> Any:
+        method = method.upper()
         url = self.base_url + "/" + path.lstrip("/")
         headers = {"Authorization": "Bearer " + self.token, "Accept": "application/json"}
         payload = None
@@ -61,41 +85,25 @@ class ControlDClient:
             payload = json.dumps(body).encode()
             headers["Content-Type"] = "application/json"
         request = urllib.request.Request(url, data=payload, headers=headers, method=method)
-        attempts = self.max_retries + 1 if method.upper() == "GET" else 1
+        attempts = self.max_retries + 1 if method == "GET" else 1
         for attempt in range(attempts):
+            last = attempt + 1 == attempts
+            backoff = self.backoff * (2**attempt)
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                with _open(request, timeout=self.timeout) as response:
                     raw = response.read()
                 break
             except urllib.error.HTTPError as exc:
-                retryable = exc.code == 429 or 500 <= exc.code < 600
-                if method.upper() == "GET" and retryable and attempt + 1 < attempts:
-                    retry_after = exc.headers.get("Retry-After")
-                    try:
-                        if retry_after:
-                            try:
-                                delay = max(0.0, float(retry_after))
-                            except (TypeError, ValueError):
-                                try:
-                                    target = parsedate_to_datetime(retry_after)
-                                    if target.tzinfo is None:
-                                        target = target.replace(tzinfo=UTC)
-                                    delay = max(0.0, (target - datetime.now(UTC)).total_seconds())
-                                except (TypeError, ValueError):
-                                    delay = self.backoff * (2**attempt)
-                        else:
-                            delay = self.backoff * (2**attempt)
-                    except (TypeError, ValueError):
-                        delay = self.backoff * (2**attempt)
-                    self.sleep(delay)
+                if not last and (exc.code == 429 or 500 <= exc.code < 600):
+                    self.sleep(_retry_delay(exc.headers.get("Retry-After"), backoff))
                     continue
                 detail = _safe_error(exc.read().decode(errors="replace")[:500], self.token)
                 raise SyncError(
                     f"Control D API {method} {path} failed ({exc.code}): {detail}"
                 ) from exc
             except urllib.error.URLError as exc:
-                if method.upper() == "GET" and attempt + 1 < attempts:
-                    self.sleep(self.backoff * (2**attempt))
+                if not last:
+                    self.sleep(backoff)
                     continue
                 raise SyncError(
                     f"Control D API request failed: {_safe_error(str(exc.reason), self.token)}"
@@ -109,7 +117,6 @@ class ControlDClient:
 
 
 def list_profiles(client: ControlDClient) -> list[dict[str, Any]]:
-    """Return the account's profiles in a normalized list."""
     return _items(client.request("/profiles"))
 
 

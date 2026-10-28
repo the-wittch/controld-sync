@@ -1,5 +1,3 @@
-"""TOML configuration loading and API URL validation."""
-
 from __future__ import annotations
 
 import tomllib

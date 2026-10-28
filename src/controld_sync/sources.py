@@ -1,5 +1,3 @@
-"""JSON source loading, normalization, and Control D schema validation."""
-
 from __future__ import annotations
 
 import json
@@ -13,6 +11,28 @@ from .errors import SchemaError, SyncError
 
 RuleAction = tuple[int, int]
 DEFAULT_ACTION: RuleAction = (0, 1)
+MAX_SOURCE_BYTES = 16 * 1024 * 1024
+
+
+def fetch_json(url: str, headers: dict[str, str] | None = None) -> Any:
+    if not url.startswith("https://"):
+        raise SyncError(f"Refusing to download {url}: sources must use HTTPS")
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "controld-sync", **(headers or {})}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            if not response.geturl().startswith("https://"):
+                raise SyncError(f"{url} redirected to a non-HTTPS location")
+            raw = response.read(MAX_SOURCE_BYTES + 1)
+    except OSError as exc:
+        raise SyncError(f"Could not download {url}: {exc}") from exc
+    if len(raw) > MAX_SOURCE_BYTES:
+        raise SyncError(f"{url} is larger than {MAX_SOURCE_BYTES // (1024 * 1024)} MiB")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SyncError(f"{url} did not return valid JSON: {exc}") from exc
 
 
 def _domain(value: Any) -> str | None:
@@ -25,15 +45,13 @@ def _domain(value: Any) -> str | None:
         value = value[2:]
     if value.startswith("||"):
         value = value[2:].split("^", 1)[0]
-    if value.startswith("www."):
-        value = value[4:]
     labels = value.split(".")
     if any(
         not label or any(c not in "abcdefghijklmnopqrstuvwxyz0123456789-_*" for c in label)
         for label in labels
     ):
         return None
-    if len(labels) == 1 and not re.fullmatch(r"[a-z0-9][a-z0-9_*_-]*", labels[0]):
+    if len(labels) == 1 and not re.fullmatch(r"[a-z0-9][a-z0-9_*-]*", labels[0]):
         return None
     return value
 
@@ -45,8 +63,7 @@ def _rule_key(value: Any) -> str | None:
     upper = stripped.upper()
     if re.fullmatch(r"@[A-Z0-9_-]+", upper):
         return upper
-    # Preserve Control D wildcard PKs (*.ACTOR, *.edu.eu, *.co.com). Only bare
-    # domains go through _domain, which strips a leading "*." for generic lists.
+    # _domain drops a leading "*.", but Control D wildcard PKs like *.ACTOR must keep it
     if upper.startswith("*."):
         rest = _domain(stripped[2:].lower())
         if not rest:
@@ -126,7 +143,6 @@ def _action(value: Any, default: RuleAction = DEFAULT_ACTION) -> RuleAction:
 
 
 def parse_folder_rules(data: Any, fallback_name: str) -> dict[str, RuleAction]:
-    """Parse rules while retaining Control D action metadata."""
     group_name, rules = validate_folder_schema(data, fallback_name)
     if isinstance(data, dict) and rules:
         group = data.get("group")
@@ -170,12 +186,7 @@ def parse_folder_data(data: Any, fallback_name: str) -> set[str]:
 
 def load_folder_source(source: str, fallback_name: str) -> dict[str, RuleAction]:
     if source.startswith(("https://", "http://")):
-        try:
-            with urllib.request.urlopen(source, timeout=60) as response:
-                data = json.loads(response.read())
-        except (OSError, json.JSONDecodeError) as exc:
-            raise SyncError(f"Could not download JSON folder {source}: {exc}") from exc
-        return parse_folder_rules(data, fallback_name)
+        return parse_folder_rules(fetch_json(source), fallback_name)
     path = Path(source)
     if path.is_dir():
         folders = load_folders(path)
@@ -192,6 +203,7 @@ def load_domains(source: Path) -> list[str]:
 
 
 __all__ = [
+    "fetch_json",
     "load_domains",
     "load_folder_source",
     "load_folders",

@@ -1,5 +1,3 @@
-"""Synchronize JSON domain lists into Control D custom-rule folders."""
-
 __version__ = "1.1.3"
 
 from .api import ControlDClient, list_profiles
